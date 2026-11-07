@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine,select,delete
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from foundation.models import Base,Organization,Membership,Job,AuditEvent,Artifact,Budget,Reservation,Invitation,now
+from foundation.models import Base,Organization,Membership,Job,AuditEvent,Artifact,Budget,Reservation,Invitation,Workflow,WorkflowStep,now
 from foundation.auth import Principal
 from foundation.api import create_app
 from foundation.service import claim,finish,recover
@@ -19,7 +19,7 @@ class FoundationTests(unittest.TestCase):
         Base.metadata.create_all(self.engine)
         self.sessions=sessionmaker(self.engine,expire_on_commit=False)
         with self.sessions.begin() as s:
-            for model in (AuditEvent,Reservation,Invitation,Budget,Artifact,Job,Membership,Organization):s.execute(delete(model))
+            for model in (AuditEvent,WorkflowStep,Workflow,Reservation,Invitation,Budget,Artifact,Job,Membership,Organization):s.execute(delete(model))
             s.add_all([Organization(id='a',name='A'),Organization(id='b',name='B')]);s.flush()
             s.add_all([Budget(organization_id='a',limit_microusd=1000000),Budget(organization_id='b',limit_microusd=1000000)])
             s.add_all([Membership(organization_id='a',subject='alice',role='owner'),Membership(organization_id='b',subject='bob',role='owner'),Membership(organization_id='a',subject='reader',role='viewer')])
