@@ -10,6 +10,8 @@ from .database import database
 from .models import Job,Artifact
 from .service import authorize,enqueue
 from . import workflows,conversations
+from .integrations import Gateway
+from operator_app.native_tools import catalog,APPS
 from .access import invite,accept,role_change
 
 class Submission(BaseModel):
@@ -33,7 +35,8 @@ class AcceptBody(BaseModel):
     token:str=Field(min_length=32,max_length=128)
 
 
-def create_app(sessions=None,verifier=None):
+def create_app(sessions=None,verifier=None,gateway_factory=None):
+    gateway_factory=gateway_factory or Gateway.configured
     production=sessions is None
     engine=None
     if production:engine,sessions=database()
@@ -115,4 +118,22 @@ def create_app(sessions=None,verifier=None):
     def conversation_message(org:str,cid:str,body:Submission,key:str=Header(alias='Idempotency-Key',min_length=1,max_length=128),principal=Depends(identity),session:Session=Depends(db)):
         turn=conversations.message(session,org,principal,cid,key,body.instruction)
         return {'turn_id':turn.id,'status':turn.status}
+    @app.get('/v1/organizations/{org}/integrations/catalog')
+    def integration_catalog(org:str,principal=Depends(identity),session:Session=Depends(db)):
+        authorize(session,org,principal)
+        return {'tools':catalog()}
+    @app.get('/v1/organizations/{org}/integrations/{integration}/status')
+    def integration_status(org:str,integration:str,principal=Depends(identity),session:Session=Depends(db)):
+        member=authorize(session,org,principal)
+        if member.role not in ('owner','admin'):raise HTTPException(403,'Owner or admin required')
+        if integration not in APPS:raise HTTPException(404,'Integration not found')
+        try:return gateway_factory().status(org,integration)
+        except Exception:raise HTTPException(503,'Integration status unavailable') from None
+    @app.post('/v1/organizations/{org}/integrations/{integration}/connect')
+    def integration_connect(org:str,integration:str,principal=Depends(identity),session:Session=Depends(db)):
+        member=authorize(session,org,principal)
+        if member.role!='owner':raise HTTPException(403,'Owner required to connect organization accounts')
+        if integration not in APPS:raise HTTPException(404,'Integration not found')
+        try:return gateway_factory().connect(org,integration)
+        except Exception:raise HTTPException(503,'Connection configuration unavailable') from None
     return app
