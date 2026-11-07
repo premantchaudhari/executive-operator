@@ -1,0 +1,149 @@
+{
+  "gmail": {
+    "auth_config_id": "",
+    "tools": {
+      "gmail.read": {
+        "slug": "",
+        "version": "",
+        "argument_map": {
+          "query": "query"
+        }
+      },
+      "gmail.send": {
+        "slug": "",
+        "version": "",
+        "argument_map": {
+          "recipient_email": "recipient_email",
+          "subject": "subject",
+          "body": "body"
+        }
+      }
+    }
+  },
+  "googlecalendar": {
+    "auth_config_id": "",
+    "tools": {
+      "calendar.read": {
+        "slug": "",
+        "version": "",
+        "argument_map": {
+          "calendar_id": "calendar_id",
+          "time_min": "time_min",
+          "time_max": "time_max"
+        }
+      },
+      "calendar.create": {
+        "slug": "",
+        "version": "",
+        "argument_map": {
+          "calendar_id": "calendar_id",
+          "title": "title",
+          "start": "start",
+          "end": "end",
+          "timezone": "timezone"
+        }
+      },
+      "calendar.cancel": {
+        "slug": "",
+        "version": "",
+        "argument_map": {
+          "event_id": "event_id"
+        }
+      }
+    }
+  },
+  "googledrive": {
+    "auth_config_id": "",
+    "tools": {
+      "drive.search": {
+        "slug": "",
+        "version": "",
+        "argument_map": {
+          "query": "query"
+        }
+      },
+      "drive.read": {
+        "slug": "",
+        "version": "",
+        "argument_map": {
+          "file_id": "file_id"
+        }
+      }
+    }
+  },
+  "googlesheets": {
+    "auth_config_id": "",
+    "tools": {
+      "sheets.read": {
+        "slug": "",
+        "version": "",
+        "argument_map": {
+          "spreadsheet_id": "spreadsheet_id",
+          "range": "range"
+        }
+      },
+      "sheets.append": {
+        "slug": "",
+        "version": "",
+        "argument_map": {
+          "spreadsheet_id": "spreadsheet_id",
+          "range": "range",
+          "values_json": "values_json"
+        }
+      }
+    }
+  },
+  "hubspot": {
+    "auth_config_id": "",
+    "tools": {
+      "hubspot.search": {
+        "slug": "",
+        "version": "",
+        "argument_map": {
+          "query": "query"
+        }
+      },
+      "hubspot.create_contact": {
+        "slug": "",
+        "version": "",
+        "argument_map": {
+          "email": "email",
+          "firstname": "firstname",
+          "lastname": "lastname"
+        }
+      }
+    }
+  },
+  "quickbooks": {
+    "auth_config_id": "",
+    "tools": {
+      "quickbooks.query": {
+        "slug": "",
+        "version": "",
+        "argument_map": {
+          "query": "query"
+        }
+      }
+    }
+  },
+  "slack": {
+    "auth_config_id": "",
+    "tools": {
+      "slack.search": {
+        "slug": "",
+        "version": "",
+        "argument_map": {
+          "query": "query"
+        }
+      },
+      "slack.send": {
+        "slug": "",
+        "version": "",
+        "argument_map": {
+          "channel_id": "channel_id",
+          "text": "text"
+        }
+      }
+    }
+  }
+}
