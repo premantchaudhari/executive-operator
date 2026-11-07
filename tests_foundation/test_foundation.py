@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine,select,delete
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from foundation.models import Base,Organization,Membership,Job,AuditEvent,Artifact,now
+from foundation.models import Base,Organization,Membership,Job,AuditEvent,Artifact,Budget,Reservation,Invitation,now
 from foundation.auth import Principal
 from foundation.api import create_app
 from foundation.service import claim,finish,recover
@@ -19,8 +19,9 @@ class FoundationTests(unittest.TestCase):
         Base.metadata.create_all(self.engine)
         self.sessions=sessionmaker(self.engine,expire_on_commit=False)
         with self.sessions.begin() as s:
-            for model in (AuditEvent,Artifact,Job,Membership,Organization):s.execute(delete(model))
+            for model in (AuditEvent,Reservation,Invitation,Budget,Artifact,Job,Membership,Organization):s.execute(delete(model))
             s.add_all([Organization(id='a',name='A'),Organization(id='b',name='B')]);s.flush()
+            s.add_all([Budget(organization_id='a',limit_microusd=1000000),Budget(organization_id='b',limit_microusd=1000000)])
             s.add_all([Membership(organization_id='a',subject='alice',role='owner'),Membership(organization_id='b',subject='bob',role='owner'),Membership(organization_id='a',subject='reader',role='viewer')])
         def verify(token):
             if token not in ('alice','bob','reader'):raise HTTPException(401,'Invalid token')
@@ -77,3 +78,22 @@ class FoundationTests(unittest.TestCase):
         with self.sessions.begin() as first:
             self.assertIsNotNone(claim(first))
             with self.sessions.begin() as second:self.assertIsNone(claim(second))
+
+    def test_budget_reserved_once(self):
+        self.submit();self.submit()
+        with self.sessions() as s:self.assertEqual(s.get(Budget,'a').reserved_microusd,100000)
+    def test_budget_exhaustion(self):
+        with self.sessions.begin() as s:s.get(Budget,'a').limit_microusd=0
+        self.assertEqual(self.submit().status_code,402)
+    def test_invitation_identity_and_replay(self):
+        headers={'Authorization':'Bearer alice'}
+        r=self.client.post('/v1/organizations/a/invitations',headers=headers,json={'subject':'bob','role':'operator'})
+        self.assertEqual(r.status_code,201);token=r.json()['token']
+        self.assertEqual(self.client.post('/v1/invitations/accept',headers=headers,json={'token':token}).status_code,404)
+        target={'Authorization':'Bearer bob'}
+        self.assertEqual(self.client.post('/v1/invitations/accept',headers=target,json={'token':token}).status_code,200)
+        self.assertEqual(self.client.post('/v1/invitations/accept',headers=target,json={'token':token}).status_code,409)
+    def test_viewer_cannot_invite(self):
+        self.assertEqual(self.client.post('/v1/organizations/a/invitations',headers={'Authorization':'Bearer reader'},json={'subject':'bob','role':'admin'}).status_code,403)
+    def test_owner_cannot_be_demoted(self):
+        self.assertEqual(self.client.patch('/v1/organizations/a/members',headers={'Authorization':'Bearer alice'},json={'subject':'alice','role':'viewer'}).status_code,409)
