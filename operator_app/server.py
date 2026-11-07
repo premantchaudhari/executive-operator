@@ -5,6 +5,7 @@ import secrets
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from .core import Operator
+from .readiness import readiness
 from .providers import Providers, post
 from .orchestration import submit_request
 
@@ -45,6 +46,8 @@ def make_handler(engine, token, owner, telegram_secret='', telegram_owner=''):
                 return
             if not self.authorized():
                 return self.reply(401, {'error': 'Authentication required'})
+            if self.path == '/api/readiness':
+                return self.reply(200, readiness(engine.provider.demo))
             if self.path == '/api/tasks':
                 return self.reply(200, {'tasks': engine.list(owner), 'demo': engine.provider.demo, 'tier': engine.tier})
             return self.reply(404, {'error': 'Not found'})
@@ -103,6 +106,10 @@ def main():
     demo = os.getenv('OPERATOR_MODE', 'demo') == 'demo'
     if os.getenv('OPERATOR_MODE', 'demo') not in ('demo', 'live'):
         raise SystemExit('OPERATOR_MODE must be demo or live')
+    if not demo:
+        checks = readiness(False)
+        if not checks['planner']['configured']:
+            raise SystemExit('Live planner not configured: check GEMINI_API_KEY, GEMINI_MODEL and install langgraph')
     path = os.getenv('OPERATOR_DB', 'data/operator.db')
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     engine = Operator(path, Providers(demo), int(os.getenv('OPERATOR_TIER', '4')), int(os.getenv('DAILY_TASK_LIMIT', '100')))

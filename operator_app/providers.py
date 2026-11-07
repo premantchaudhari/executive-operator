@@ -29,7 +29,14 @@ class Providers:
         validate(plan)
         action, args = plan['action'], plan['arguments']
         if self.demo:
-            return {'demo': True, 'message': 'Simulation only. No external action occurred.', 'action': action}
+            fixtures = {
+                'gmail.read': {'messages': [{'from': 'client@example.com', 'subject': 'Proposal follow-up', 'snippet': 'Can we review the revised proposal tomorrow?'}, {'from': 'team@example.com', 'subject': 'Weekly operations summary', 'snippet': 'The weekly report is ready for review.'}]},
+                'gmail.send': {'recipient': args.get('recipient_email'), 'subject': args.get('subject'), 'body': args.get('body'), 'delivery': 'SIMULATED'},
+                'calendar.cancel': {'event_id': args.get('event_id'), 'cancellation': 'SIMULATED'},
+                'browser.inspect': {'url': args.get('url'), 'title': 'Example business portal (fictional)', 'text': 'DEMO DATA: 3 open requests; 2 pending approvals.'},
+                'sandbox.python': {'message': 'Code reviewed; execution simulated. No fabricated calculation output.'},
+            }
+            return {'demo': True, 'message': 'Simulation only. Fictional data; no external action occurred.', 'action': action, 'preview': fixtures[action]}
         if action.startswith(('gmail.', 'calendar.')):
             from composio import Composio
             client = Composio(api_key=os.environ['COMPOSIO_API_KEY'])
