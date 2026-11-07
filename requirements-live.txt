@@ -1,0 +1,5 @@
+# Optional live SDKs. Resolve and lock versions after provider contract tests.
+composio
+playwright
+e2b-code-interpreter
+langgraph

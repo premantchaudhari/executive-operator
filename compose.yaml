@@ -1,0 +1,21 @@
+services:
+  operator:
+    build: .
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - operator_data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 100
+    restart: unless-stopped
+volumes:
+  operator_data:
