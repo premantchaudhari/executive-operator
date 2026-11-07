@@ -11,6 +11,7 @@ from .models import Job,Artifact
 from .service import authorize,enqueue
 from . import workflows,conversations
 from .integrations import Gateway
+from .policy import set_paused
 from operator_app.native_tools import catalog,APPS
 from .access import invite,accept,role_change
 
@@ -25,6 +26,14 @@ class DecisionBody(BaseModel):
     model_config=ConfigDict(extra='forbid')
     digest:str=Field(min_length=64,max_length=64)
     approved:bool=Field(strict=True)
+
+class PauseBody(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    paused:bool=Field(strict=True)
+class EditBody(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    digest:str=Field(min_length=64,max_length=64)
+    plan:dict
 
 class InviteBody(BaseModel):
     model_config=ConfigDict(extra='forbid')
@@ -66,7 +75,7 @@ def create_app(sessions=None,verifier=None,gateway_factory=None):
     def ready(session:Session=Depends(db)):
         try:
             revision=session.execute(text('SELECT version_num FROM alembic_version')).scalar_one()
-            if revision!='0004':raise ValueError('Unsupported schema')
+            if revision!='0005':raise ValueError('Unsupported schema')
         except Exception:raise HTTPException(503,'Database or schema unavailable') from None
         return {'ok':True}
     @app.post('/v1/organizations/{org}/jobs',status_code=202)
@@ -136,4 +145,10 @@ def create_app(sessions=None,verifier=None,gateway_factory=None):
         if integration not in APPS:raise HTTPException(404,'Integration not found')
         try:return gateway_factory().connect(org,integration)
         except Exception:raise HTTPException(503,'Connection configuration unavailable') from None
+    @app.post('/v1/organizations/{org}/pause')
+    def pause_organization(org:str,body:PauseBody,principal=Depends(identity),session:Session=Depends(db)):
+        return set_paused(session,org,principal,body.paused)
+    @app.patch('/v1/organizations/{org}/workflows/{wid}/steps/{sid}')
+    def edit_workflow_step(org:str,wid:str,sid:str,body:EditBody,principal=Depends(identity),session:Session=Depends(db)):
+        return workflows.edit_step(session,org,principal,wid,sid,body.digest,body.plan)
     return app

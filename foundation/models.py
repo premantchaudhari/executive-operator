@@ -78,6 +78,7 @@ class WorkflowStep(Base):
     digest: Mapped[str]=mapped_column(String(64))
     status: Mapped[str]=mapped_column(String(24),default='pending')
     result: Mapped[str|None]=mapped_column(Text,nullable=True)
+    approved_by: Mapped[str|None]=mapped_column(String(255),nullable=True)
     approval_until: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
 class Conversation(Base):
     __tablename__='conversations'
@@ -96,3 +97,7 @@ class ConversationTurn(Base):
     response: Mapped[str|None]=mapped_column(Text,nullable=True)
     status: Mapped[str]=mapped_column(String(24),default='queued')
     created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
+class OrganizationControl(Base):
+    __tablename__='organization_controls'
+    organization_id: Mapped[str]=mapped_column(ForeignKey('organizations.id'),primary_key=True)
+    paused: Mapped[int]=mapped_column(Integer,default=0)

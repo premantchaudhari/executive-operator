@@ -6,8 +6,9 @@ from fastapi import HTTPException
 from langgraph.graph import StateGraph,START,END
 from typing import TypedDict
 from operator_app.core import validate,APPROVAL
-from .models import Workflow,WorkflowStep,AuditEvent,now,identifier
+from .models import Workflow,WorkflowStep,AuditEvent,Job,now,identifier
 from .service import authorize,enqueue
+from .policy import require_owner,permitted
 
 def canonical(plan):return json.dumps(validate(plan),sort_keys=True,separators=(',',':'))
 def digest(plan):return hashlib.sha256(plan.encode()).hexdigest()
@@ -35,11 +36,13 @@ def summary(session,wf):
 
 def decide(session,org,principal,wid,sid,expected_digest,approved):
     wf=scoped(session,org,principal,wid,True)
+    require_owner(session,org,principal)
     step=session.scalar(select(WorkflowStep).where(WorkflowStep.id==sid,WorkflowStep.workflow_id==wid))
     if wf.status!='awaiting_approval' or step is None or step.status!='awaiting_approval':raise HTTPException(409,'Not awaiting this decision')
     if step.digest!=expected_digest:raise HTTPException(409,'Action version changed')
     expires=step.approval_until
     if expires is None or expires.replace(tzinfo=now().tzinfo) <=now():raise HTTPException(409,'Approval expired; request fresh review')
+    step.approved_by=principal.subject if approved else None
     step.status='approved' if approved else 'rejected';wf.status='queued' if approved else 'rejected'
     session.add(AuditEvent(organization_id=org,actor=principal.subject,resource_id=sid,event='step.'+step.status))
     return {'status':wf.status}
@@ -65,6 +68,9 @@ def run(sessions,wid,execute):
         with sessions.begin() as session:
             wf=session.scalar(select(Workflow).where(Workflow.id==wid).with_for_update())
             if wf is None:raise ValueError('Unknown workflow')
+            job=session.get(Job,wid)
+            if not permitted(session,wf.organization_id,job.submitted_by):
+                return {'continue_run':False}
             if wf.status in ('completed','cancelled','rejected','needs_review'):return {'continue_run':False}
             step=session.scalar(select(WorkflowStep).where(WorkflowStep.workflow_id==wid,WorkflowStep.status!='completed').order_by(WorkflowStep.position).limit(1))
             if step is None:wf.status='completed';return {'continue_run':False}
@@ -82,6 +88,9 @@ def run(sessions,wid,execute):
                 step.status='awaiting_approval';step.approval_until=now()+timedelta(minutes=15);wf.status='awaiting_approval'
                 return {'continue_run':False}
             if step.status=='approved':
+                if not step.approved_by or not permitted(session,wf.organization_id,job.submitted_by,step.approved_by):
+                    step.status='awaiting_approval';step.approved_by=None;step.approval_until=now()+timedelta(minutes=15);wf.status='awaiting_approval'
+                    return {'continue_run':False}
                 deadline=step.approval_until
                 if deadline is None or deadline.replace(tzinfo=now().tzinfo)<=now():
                     step.status='awaiting_approval';step.approval_until=now()+timedelta(minutes=15);wf.status='awaiting_approval'
@@ -106,3 +115,18 @@ def run(sessions,wid,execute):
     graph=StateGraph(RunState);graph.add_node('advance',advance);graph.add_edge(START,'advance')
     graph.add_conditional_edges('advance',lambda s:'advance' if s['continue_run'] else END)
     return graph.compile().invoke({'id':wid,'continue_run':True},{'recursion_limit':25})
+
+
+def edit_step(session,org,principal,wid,sid,expected_digest,plan):
+    wf=scoped(session,org,principal,wid,True)
+    require_owner(session,org,principal)
+    step=session.scalar(select(WorkflowStep).where(WorkflowStep.id==sid,WorkflowStep.workflow_id==wid))
+    if step is None:raise HTTPException(404,'Step not found')
+    if wf.status in ('completed','cancelled','rejected','needs_review') or step.status not in ('pending','awaiting_approval','approved'):
+        raise HTTPException(409,'Step cannot be edited in current state')
+    if step.digest!=expected_digest:raise HTTPException(409,'Action version changed')
+    encoded=canonical(plan)
+    step.plan=encoded;step.digest=digest(encoded);step.status='pending';step.approved_by=None;step.approval_until=None
+    wf.status='queued'
+    session.add(AuditEvent(organization_id=org,actor=principal.subject,resource_id=sid,event='step.edited_approval_invalidated'))
+    return {'digest':step.digest,'status':step.status}
