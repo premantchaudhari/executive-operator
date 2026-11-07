@@ -63,3 +63,19 @@ class Reservation(Base):
     job_id: Mapped[str]=mapped_column(ForeignKey('jobs.id'),primary_key=True)
     amount_microusd: Mapped[int]=mapped_column(Integer)
     status: Mapped[str]=mapped_column(String(20),default='reserved')
+class Workflow(Base):
+    __tablename__='workflows'
+    id: Mapped[str]=mapped_column(ForeignKey('jobs.id'),primary_key=True)
+    organization_id: Mapped[str]=mapped_column(ForeignKey('organizations.id'),index=True)
+    status: Mapped[str]=mapped_column(String(24),default='queued')
+class WorkflowStep(Base):
+    __tablename__='workflow_steps'
+    __table_args__=(UniqueConstraint('workflow_id','position'),)
+    id: Mapped[str]=mapped_column(String(36),primary_key=True,default=identifier)
+    workflow_id: Mapped[str]=mapped_column(ForeignKey('workflows.id'),index=True)
+    position: Mapped[int]=mapped_column(Integer)
+    plan: Mapped[str]=mapped_column(Text)
+    digest: Mapped[str]=mapped_column(String(64))
+    status: Mapped[str]=mapped_column(String(24),default='pending')
+    result: Mapped[str|None]=mapped_column(Text,nullable=True)
+    approval_until: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)

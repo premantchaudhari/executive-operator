@@ -9,12 +9,20 @@ from .auth import OIDCVerifier
 from .database import database
 from .models import Job,Artifact
 from .service import authorize,enqueue
+from . import workflows
 from .access import invite,accept,role_change
 
 class Submission(BaseModel):
     model_config=ConfigDict(extra='forbid')
     instruction: str=Field(min_length=1,max_length=20000)
 
+
+class WorkflowBody(Submission):
+    steps:list[dict]=Field(min_length=1,max_length=20)
+class DecisionBody(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    digest:str=Field(min_length=64,max_length=64)
+    approved:bool=Field(strict=True)
 
 class InviteBody(BaseModel):
     model_config=ConfigDict(extra='forbid')
@@ -55,7 +63,7 @@ def create_app(sessions=None,verifier=None):
     def ready(session:Session=Depends(db)):
         try:
             revision=session.execute(text('SELECT version_num FROM alembic_version')).scalar_one()
-            if revision!='0002':raise ValueError('Unsupported schema')
+            if revision!='0003':raise ValueError('Unsupported schema')
         except Exception:raise HTTPException(503,'Database or schema unavailable') from None
         return {'ok':True}
     @app.post('/v1/organizations/{org}/jobs',status_code=202)
@@ -84,4 +92,17 @@ def create_app(sessions=None,verifier=None):
     @app.patch('/v1/organizations/{org}/members')
     def change_role(org:str,body:InviteBody,principal=Depends(identity),session:Session=Depends(db)):
         return role_change(session,org,principal,body.subject,body.role)
+    @app.post('/v1/organizations/{org}/workflows',status_code=202)
+    def create_workflow(org:str,body:WorkflowBody,key:str=Header(alias='Idempotency-Key',min_length=1,max_length=128),principal=Depends(identity),session:Session=Depends(db)):
+        wf=workflows.create(session,org,principal,key,body.instruction,body.steps)
+        return workflows.summary(session,wf)
+    @app.get('/v1/organizations/{org}/workflows/{wid}')
+    def get_workflow(org:str,wid:str,principal=Depends(identity),session:Session=Depends(db)):
+        return workflows.summary(session,workflows.scoped(session,org,principal,wid))
+    @app.post('/v1/organizations/{org}/workflows/{wid}/steps/{sid}/decision')
+    def decide_workflow(org:str,wid:str,sid:str,body:DecisionBody,principal=Depends(identity),session:Session=Depends(db)):
+        return workflows.decide(session,org,principal,wid,sid,body.digest,body.approved)
+    @app.post('/v1/organizations/{org}/workflows/{wid}/cancel')
+    def cancel_workflow(org:str,wid:str,principal=Depends(identity),session:Session=Depends(db)):
+        return workflows.cancel(session,org,principal,wid)
     return app
