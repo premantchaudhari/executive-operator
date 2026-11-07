@@ -104,6 +104,16 @@ def create_app(sessions=None,verifier=None,gateway_factory=None):
     @app.patch('/v1/organizations/{org}/members')
     def change_role(org:str,body:InviteBody,principal=Depends(identity),session:Session=Depends(db)):
         return role_change(session,org,principal,body.subject,body.role)
+    @app.post('/v1/organizations/{org}/preview')
+    def preview_workflow(org:str,body:WorkflowBody,principal=Depends(identity),session:Session=Depends(db)):
+        return workflows.preview(session,org,principal,body.steps)
+    @app.get('/v1/organizations/{org}/exceptions')
+    def exception_inbox(org:str,principal=Depends(identity),session:Session=Depends(db)):
+        return workflows.exceptions(session,org,principal)
+    @app.post('/v1/organizations/{org}/workflows/{wid}/steps/{sid}/review')
+    def refresh_review(org:str,wid:str,sid:str,body:DecisionBody,principal=Depends(identity),session:Session=Depends(db)):
+        if body.approved:raise HTTPException(400,'Review refresh is not approval')
+        return workflows.refresh_review(session,org,principal,wid,sid,body.digest)
     @app.post('/v1/organizations/{org}/workflows',status_code=202)
     def create_workflow(org:str,body:WorkflowBody,key:str=Header(alias='Idempotency-Key',min_length=1,max_length=128),principal=Depends(identity),session:Session=Depends(db)):
         wf=workflows.create(session,org,principal,key,body.instruction,body.steps)

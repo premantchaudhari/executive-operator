@@ -6,11 +6,16 @@ from fastapi import HTTPException
 from langgraph.graph import StateGraph,START,END
 from typing import TypedDict
 from operator_app.core import validate,APPROVAL
+from operator_app.native_tools import TOOLS
 from .models import Workflow,WorkflowStep,AuditEvent,Job,now,identifier
 from .service import authorize,enqueue
 from .policy import require_owner,permitted
 
-def canonical(plan):return json.dumps(validate(plan),sort_keys=True,separators=(',',':'))
+def canonical(plan):
+    validate(plan)
+    if plan['action'] not in TOOLS:
+        raise HTTPException(409,'Production browser and sandbox execution require their dedicated policy gates')
+    return json.dumps(plan,sort_keys=True,separators=(',',':'))
 def digest(plan):return hashlib.sha256(plan.encode()).hexdigest()
 
 def create(session,org,principal,key,instruction,plans):
@@ -83,7 +88,7 @@ def run(sessions,wid,execute):
                 wf.status='needs_review';return {'continue_run':False}
             plan=json.loads(step.plan)
             if digest(step.plan)!=step.digest:raise ValueError('Corrupt plan')
-            validate(plan)
+            canonical(plan)
             if plan['action'] in APPROVAL and step.status!='approved':
                 step.status='awaiting_approval';step.approval_until=now()+timedelta(minutes=15);wf.status='awaiting_approval'
                 return {'continue_run':False}
@@ -130,3 +135,35 @@ def edit_step(session,org,principal,wid,sid,expected_digest,plan):
     wf.status='queued'
     session.add(AuditEvent(organization_id=org,actor=principal.subject,resource_id=sid,event='step.edited_approval_invalidated'))
     return {'digest':step.digest,'status':step.status}
+
+
+def preview(session,org,principal,plans):
+    """Pure validation: never enqueue, reserve budget, call providers or approve."""
+    authorize(session,org,principal,True)
+    if not 1<=len(plans)<=20:raise HTTPException(400,'Preview requires 1–20 steps')
+    items=[]
+    for plan in plans:
+        encoded=canonical(plan)
+        items.append({'plan':json.loads(encoded),'digest':digest(encoded),
+                      'approval_required':plan['action'] in APPROVAL,
+                      'effect':TOOLS[plan['action']][1]})
+    return {'mode':'preview','executed':False,'steps':items,
+            'limitations':['No provider access or live data fetched','Account and resource permissions require execution-time validation']}
+
+
+def refresh_review(session,org,principal,wid,sid,expected_digest):
+    wf=scoped(session,org,principal,wid,True)
+    require_owner(session,org,principal)
+    step=session.scalar(select(WorkflowStep).where(WorkflowStep.id==sid,WorkflowStep.workflow_id==wid))
+    if step is None or wf.status!='awaiting_approval' or step.status!='awaiting_approval':
+        raise HTTPException(409,'Step is not awaiting review')
+    if step.digest!=expected_digest:raise HTTPException(409,'Action version changed')
+    step.approved_by=None;step.approval_until=now()+timedelta(minutes=15)
+    session.add(AuditEvent(organization_id=org,actor=principal.subject,resource_id=sid,event='step.review_refreshed'))
+    return {'digest':step.digest,'approval_until':step.approval_until.isoformat()}
+
+
+def exceptions(session,org,principal):
+    require_owner(session,org,principal)
+    items=session.scalars(select(Workflow).where(Workflow.organization_id==org,Workflow.status.in_(('awaiting_approval','needs_review'))).order_by(Workflow.id).limit(100)).all()
+    return {'workflows':[summary(session,wf) for wf in items]}
