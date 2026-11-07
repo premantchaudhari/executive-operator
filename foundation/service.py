@@ -2,7 +2,7 @@ import json
 from datetime import timedelta
 from sqlalchemy import select, update
 from fastapi import HTTPException
-from .models import Membership, Job, AuditEvent, Artifact, now, identifier
+from .models import Membership, Job, AuditEvent, Artifact, Budget, Reservation, now, identifier
 
 def authorize(session,org,principal,write=False):
     membership=session.get(Membership,(org,principal.subject))
@@ -22,8 +22,15 @@ def enqueue(session,org,principal,key,payload):
     if existing:
         if existing.payload!=serialized: raise HTTPException(409,'Idempotency key conflict')
         return existing
+    budget=session.get(Budget,org)
+    reservation_amount=100000  # USD 0.10 ceiling allocated per queued job, configurable pricing comes later.
+    if budget is None or budget.spent_microusd+budget.reserved_microusd+reservation_amount>budget.limit_microusd:
+        raise HTTPException(402,'Insufficient configured budget')
+    budget.reserved_microusd+=reservation_amount
     job=Job(id=identifier(),organization_id=org,submitted_by=principal.subject,request_key=key,payload=serialized)
     session.add(job)
+    session.flush()
+    session.add(Reservation(job_id=job.id,amount_microusd=reservation_amount))
     session.add(AuditEvent(organization_id=org,actor=principal.subject,resource_id=job.id,event='job.queued'))
     session.flush()
     return job

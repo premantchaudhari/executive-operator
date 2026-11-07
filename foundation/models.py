@@ -43,3 +43,23 @@ class Artifact(Base):
     object_key: Mapped[str]=mapped_column(String(512),unique=True)
     filename: Mapped[str]=mapped_column(String(255))
     # No public storage URLs. Authorized storage delivery is added in Phase 6.
+class Invitation(Base):
+    __tablename__='invitations'
+    id: Mapped[str]=mapped_column(String(36),primary_key=True,default=identifier)
+    organization_id: Mapped[str]=mapped_column(ForeignKey('organizations.id'),index=True)
+    subject: Mapped[str]=mapped_column(String(255))
+    role: Mapped[str]=mapped_column(String(20))
+    token_hash: Mapped[str]=mapped_column(String(64),unique=True)
+    expires_at: Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    status: Mapped[str]=mapped_column(String(20),default='pending')
+class Budget(Base):
+    __tablename__='budgets'
+    organization_id: Mapped[str]=mapped_column(ForeignKey('organizations.id'),primary_key=True)
+    limit_microusd: Mapped[int]=mapped_column(Integer)
+    reserved_microusd: Mapped[int]=mapped_column(Integer,default=0)
+    spent_microusd: Mapped[int]=mapped_column(Integer,default=0)
+class Reservation(Base):
+    __tablename__='reservations'
+    job_id: Mapped[str]=mapped_column(ForeignKey('jobs.id'),primary_key=True)
+    amount_microusd: Mapped[int]=mapped_column(Integer)
+    status: Mapped[str]=mapped_column(String(20),default='reserved')

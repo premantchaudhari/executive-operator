@@ -9,10 +9,20 @@ from .auth import OIDCVerifier
 from .database import database
 from .models import Job,Artifact
 from .service import authorize,enqueue
+from .access import invite,accept,role_change
 
 class Submission(BaseModel):
     model_config=ConfigDict(extra='forbid')
     instruction: str=Field(min_length=1,max_length=20000)
+
+
+class InviteBody(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    subject:str=Field(min_length=1,max_length=255)
+    role:str
+class AcceptBody(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    token:str=Field(min_length=32,max_length=128)
 
 
 def create_app(sessions=None,verifier=None):
@@ -45,7 +55,7 @@ def create_app(sessions=None,verifier=None):
     def ready(session:Session=Depends(db)):
         try:
             revision=session.execute(text('SELECT version_num FROM alembic_version')).scalar_one()
-            if revision!='0001':raise ValueError('Unsupported schema')
+            if revision!='0002':raise ValueError('Unsupported schema')
         except Exception:raise HTTPException(503,'Database or schema unavailable') from None
         return {'ok':True}
     @app.post('/v1/organizations/{org}/jobs',status_code=202)
@@ -65,4 +75,13 @@ def create_app(sessions=None,verifier=None):
         item=session.scalar(select(Artifact).where(Artifact.id==artifact_id,Artifact.organization_id==org))
         if item is None:raise HTTPException(404,'Artifact not found')
         return {'id':item.id,'filename':item.filename,'delivery':'not_enabled'}
+    @app.post('/v1/organizations/{org}/invitations',status_code=201)
+    def invitation(org:str,body:InviteBody,principal=Depends(identity),session:Session=Depends(db)):
+        return invite(session,org,principal,body.subject,body.role)
+    @app.post('/v1/invitations/accept')
+    def accept_invitation(body:AcceptBody,principal=Depends(identity),session:Session=Depends(db)):
+        return accept(session,principal,body.token)
+    @app.patch('/v1/organizations/{org}/members')
+    def change_role(org:str,body:InviteBody,principal=Depends(identity),session:Session=Depends(db)):
+        return role_change(session,org,principal,body.subject,body.role)
     return app
