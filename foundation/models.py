@@ -79,3 +79,20 @@ class WorkflowStep(Base):
     status: Mapped[str]=mapped_column(String(24),default='pending')
     result: Mapped[str|None]=mapped_column(Text,nullable=True)
     approval_until: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+class Conversation(Base):
+    __tablename__='conversations'
+    id: Mapped[str]=mapped_column(String(36),primary_key=True,default=identifier)
+    organization_id: Mapped[str]=mapped_column(ForeignKey('organizations.id'),index=True)
+    status: Mapped[str]=mapped_column(String(24),default='open')
+class ConversationTurn(Base):
+    __tablename__='conversation_turns'
+    __table_args__=(UniqueConstraint('conversation_id','request_key'),)
+    id: Mapped[str]=mapped_column(String(36),primary_key=True,default=identifier)
+    conversation_id: Mapped[str]=mapped_column(ForeignKey('conversations.id'),index=True)
+    job_id: Mapped[str]=mapped_column(ForeignKey('jobs.id'),unique=True)
+    request_key: Mapped[str]=mapped_column(String(128))
+    author: Mapped[str]=mapped_column(String(255))
+    message: Mapped[str]=mapped_column(Text)
+    response: Mapped[str|None]=mapped_column(Text,nullable=True)
+    status: Mapped[str]=mapped_column(String(24),default='queued')
+    created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)

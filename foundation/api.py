@@ -9,7 +9,7 @@ from .auth import OIDCVerifier
 from .database import database
 from .models import Job,Artifact
 from .service import authorize,enqueue
-from . import workflows
+from . import workflows,conversations
 from .access import invite,accept,role_change
 
 class Submission(BaseModel):
@@ -63,7 +63,7 @@ def create_app(sessions=None,verifier=None):
     def ready(session:Session=Depends(db)):
         try:
             revision=session.execute(text('SELECT version_num FROM alembic_version')).scalar_one()
-            if revision!='0003':raise ValueError('Unsupported schema')
+            if revision!='0004':raise ValueError('Unsupported schema')
         except Exception:raise HTTPException(503,'Database or schema unavailable') from None
         return {'ok':True}
     @app.post('/v1/organizations/{org}/jobs',status_code=202)
@@ -105,4 +105,14 @@ def create_app(sessions=None,verifier=None):
     @app.post('/v1/organizations/{org}/workflows/{wid}/cancel')
     def cancel_workflow(org:str,wid:str,principal=Depends(identity),session:Session=Depends(db)):
         return workflows.cancel(session,org,principal,wid)
+    @app.post('/v1/organizations/{org}/conversations',status_code=201)
+    def new_conversation(org:str,principal=Depends(identity),session:Session=Depends(db)):
+        return {'id':conversations.start(session,org,principal).id}
+    @app.get('/v1/organizations/{org}/conversations/{cid}')
+    def conversation_history(org:str,cid:str,principal=Depends(identity),session:Session=Depends(db)):
+        return conversations.history(session,conversations.scoped(session,org,principal,cid))
+    @app.post('/v1/organizations/{org}/conversations/{cid}/messages',status_code=202)
+    def conversation_message(org:str,cid:str,body:Submission,key:str=Header(alias='Idempotency-Key',min_length=1,max_length=128),principal=Depends(identity),session:Session=Depends(db)):
+        turn=conversations.message(session,org,principal,cid,key,body.instruction)
+        return {'turn_id':turn.id,'status':turn.status}
     return app
