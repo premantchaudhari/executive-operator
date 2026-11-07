@@ -1,0 +1,54 @@
+"""Frozen initial schema; never import mutable application models here."""
+from alembic import op
+import uuid
+from datetime import datetime, timezone
+from sqlalchemy import String, Text, Integer, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+def identifier(): return str(uuid.uuid4())
+def now(): return datetime.now(timezone.utc)
+class Base(DeclarativeBase): pass
+class Organization(Base):
+    __tablename__='organizations'
+    id: Mapped[str]=mapped_column(String(36),primary_key=True,default=identifier)
+    name: Mapped[str]=mapped_column(String(160))
+class Membership(Base):
+    __tablename__='memberships'
+    organization_id: Mapped[str]=mapped_column(ForeignKey('organizations.id'),primary_key=True)
+    subject: Mapped[str]=mapped_column(String(255),primary_key=True)
+    role: Mapped[str]=mapped_column(String(20))
+class Job(Base):
+    __tablename__='jobs'
+    __table_args__=(UniqueConstraint('organization_id','request_key'),)
+    id: Mapped[str]=mapped_column(String(36),primary_key=True,default=identifier)
+    organization_id: Mapped[str]=mapped_column(ForeignKey('organizations.id'),index=True)
+    submitted_by: Mapped[str]=mapped_column(String(255))
+    request_key: Mapped[str]=mapped_column(String(128))
+    payload: Mapped[str]=mapped_column(Text)
+    status: Mapped[str]=mapped_column(String(24),default='queued',index=True)
+    attempts: Mapped[int]=mapped_column(Integer,default=0)
+    lease_token: Mapped[str|None]=mapped_column(String(36),nullable=True)
+    lease_until: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
+class AuditEvent(Base):
+    __tablename__='audit_events'
+    id: Mapped[str]=mapped_column(String(36),primary_key=True,default=identifier)
+    organization_id: Mapped[str]=mapped_column(ForeignKey('organizations.id'),index=True)
+    actor: Mapped[str]=mapped_column(String(255))
+    resource_id: Mapped[str]=mapped_column(String(36))
+    event: Mapped[str]=mapped_column(String(64))
+    created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
+class Artifact(Base):
+    __tablename__='artifacts'
+    id: Mapped[str]=mapped_column(String(36),primary_key=True,default=identifier)
+    organization_id: Mapped[str]=mapped_column(ForeignKey('organizations.id'),index=True)
+    object_key: Mapped[str]=mapped_column(String(512),unique=True)
+    filename: Mapped[str]=mapped_column(String(255))
+    # No public storage URLs. Authorized storage delivery is added in Phase 6.
+
+revision="0001"
+down_revision=None
+branch_labels=None
+depends_on=None
+def upgrade():Base.metadata.create_all(bind=op.get_bind())
+def downgrade():Base.metadata.drop_all(bind=op.get_bind())
