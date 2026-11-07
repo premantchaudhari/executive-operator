@@ -35,3 +35,9 @@ Artifact routes return authorized metadata only, never storage keys/public URLs.
 - Implement usage reservations/admission, private object-store integration, structured redacted logging/metrics and ingress limits.
 - Exercise migrations and image builds in CI, restore/upgrade tests and staging deployment.
 - Integrate the foundation into the product UI after these gates pass; keep demo and live isolation tested.
+
+## Team access and budget increment (migration 0002)
+
+Owner-only invitation creation returns a one-time token to the authorized owner; this is not automatically emailed or sent to anyone. Store only its SHA-256 hash. It expires in 24 hours and is bound to the intended verified OIDC subject. The recipient signs in and accepts through POST /v1/invitations/accept. Wrong identities cannot consume it. Roles available through invitations are admin/operator/viewer. Only owners may change non-owner roles; ownership transfer/demotion is explicitly blocked pending its own verified flow. Browser login, invitation delivery UI and self-service provisioning remain open.
+
+Jobs now require a configured budget and reserve USD 0.10 (100,000 microUSD) atomically alongside enqueue/audit within the organization row lock. Duplicate submissions reuse the reservation. Missing or insufficient budget fails closed with 402. This fixed reservation is admission scaffolding, not a verified provider cost estimate or actual spending cap: workers in this increment still do not execute providers. Provider execution must enforce remaining allocation per step before being enabled. Reservations remain held for uncertain/review work; settlement, release and billing reconciliation are pending. Provision new organizations with --budget-microusd; default zero blocks execution admission until explicitly funded. No money is charged by this ledger.
