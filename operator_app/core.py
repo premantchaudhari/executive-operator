@@ -4,9 +4,11 @@ import sqlite3
 import time
 import uuid
 from threading import RLock
+from .native_tools import TOOLS,check_arguments
 
 ACTIONS = {'gmail.read': 1, 'gmail.send': 2, 'calendar.cancel': 2, 'browser.inspect': 3, 'sandbox.python': 4}
-APPROVAL = {'gmail.send', 'calendar.cancel', 'sandbox.python'}
+ACTIONS.update({a:1 if s[1]=='read' else 2 for a,s in TOOLS.items()})
+APPROVAL = {'sandbox.python'} | {a for a,s in TOOLS.items() if s[1]=='write'}
 
 
 def validate(plan):
@@ -15,6 +17,9 @@ def validate(plan):
     action, args = plan['action'], plan['arguments']
     if not isinstance(action, str) or action not in ACTIONS or not isinstance(args, dict):
         raise ValueError('Unsupported action; payments, OTP and arbitrary browser writes are disabled')
+    if action in TOOLS:
+        check_arguments(action,args)
+        if action!='gmail.send':return plan
     fields = {'gmail.read': {'query'}, 'gmail.send': {'recipient_email', 'subject', 'body'},
               'calendar.cancel': {'event_id'}, 'browser.inspect': {'url'}, 'sandbox.python': {'code'}}[action]
     if set(args) != fields or any(not isinstance(v, str) or not v.strip() or len(v) > 20000 for v in args.values()):
