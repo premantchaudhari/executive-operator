@@ -76,3 +76,17 @@ gh repo view --json nameWithOwner,isPrivate,url
 ```
 
 Verify `isPrivate` is `true`. Never upload `.env`, credentials, client data or the SQLite database. No public license is granted; see LICENSE.
+
+## Separate demonstration and live instances · v0.2 development
+
+Keep the demonstration on port 8080 with `.env` (`OPERATOR_MODE=demo`) and the original compose file. Its fictional inbox and action previews demonstrate approvals without sending anything.
+
+For live setup, copy `.env.example` to `.env.live`, set a **different random owner token**, configure your providers, then run:
+
+```bash
+docker compose -p operator-live -f compose.live.yaml up -d --build
+```
+
+The live instance uses port 8081 and a separate database volume. Both ports bind to localhost. Add HTTPS reverse proxy routing before remote use. In the dashboard, **Check setup** reports missing configuration without exposing secret values. “Configured” is not proof OAuth or provider execution works. Live startup refuses an unconfigured planner.
+
+The live image includes SDK dependencies; these are not yet locked or provider-contract verified. This is an implementation step toward the working pilot, not a claim of production readiness. Account credentials and controlled end-to-end provider tests remain necessary. Do not replace an existing demonstration database with live client data.

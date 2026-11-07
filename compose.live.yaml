@@ -1,0 +1,23 @@
+# Run independently: docker compose -p operator-live -f compose.live.yaml up -d --build
+services:
+  operator:
+    build:
+      context: .
+      dockerfile: Dockerfile.live
+    env_file: .env.live
+    environment:
+      HOST: 0.0.0.0
+      OPERATOR_MODE: live
+      OPERATOR_DB: /app/data/live.db
+    ports: ["127.0.0.1:8081:8080"]
+    volumes: ["live_data:/app/data"]
+    read_only: true
+    tmpfs: ["/tmp:size=64m"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    cpus: 0.75
+    pids_limit: 100
+    restart: unless-stopped
+volumes:
+  live_data:
