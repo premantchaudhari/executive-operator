@@ -1,0 +1,33 @@
+name: Foundation PostgreSQL tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: operator_test
+          POSTGRES_USER: operator_test
+          POSTGRES_PASSWORD: local-ci-only-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U operator_test -d operator_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://operator_test:local-ci-only-password@localhost:5432/operator_test
+      TEST_DATABASE_URL: postgresql+psycopg://operator_test:local-ci-only-password@localhost:5432/operator_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements-foundation.lock
+      - run: pip check
+      - run: alembic upgrade head
+      - run: python -m unittest discover -s tests_foundation -v
+      - run: alembic downgrade base
+      - run: alembic upgrade head
+      - run: python -m compileall -q foundation migrations
