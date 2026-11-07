@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from .core import Operator
 from .readiness import readiness
+from .runtime import BoundedHTTPServer, acquire_database_lock
 from .providers import Providers, post
 from .orchestration import submit_request
 
@@ -22,6 +23,8 @@ def make_handler(engine, token, owner, telegram_secret='', telegram_owner=''):
             self.send_header('Content-Length', str(len(body)))
             self.send_header('Cache-Control', 'no-store')
             self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Referrer-Policy', 'no-referrer')
+            self.send_header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
             self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'")
             self.end_headers()
             self.wfile.write(body)
@@ -60,6 +63,8 @@ def make_handler(engine, token, owner, telegram_secret='', telegram_owner=''):
                         return self.reply(401, {'error': 'Invalid webhook secret'})
                 elif not self.authorized():
                     return self.reply(401, {'error': 'Authentication required'})
+                if self.headers.get('Transfer-Encoding'):
+                    return self.reply(400, {'error': 'Transfer encoding is unsupported'})
                 size = int(self.headers.get('Content-Length', '0'))
                 if not 0 < size <= 65536:
                     return self.reply(413, {'error': 'Body must be 1–65536 bytes'})
@@ -101,7 +106,7 @@ def make_handler(engine, token, owner, telegram_secret='', telegram_owner=''):
 
 def main():
     token = os.getenv('OPERATOR_API_TOKEN', '')
-    if len(token) < 32:
+    if len(token) < 32 or token == 'replace-with-random-secret-at-least-32-characters':
         raise SystemExit('Set OPERATOR_API_TOKEN to a random secret of at least 32 characters')
     demo = os.getenv('OPERATOR_MODE', 'demo') == 'demo'
     if os.getenv('OPERATOR_MODE', 'demo') not in ('demo', 'live'):
@@ -112,9 +117,10 @@ def main():
             raise SystemExit('Live planner not configured: check GEMINI_API_KEY, GEMINI_MODEL and install langgraph')
     path = os.getenv('OPERATOR_DB', 'data/operator.db')
     Path(path).parent.mkdir(parents=True, exist_ok=True)
+    database_lock = acquire_database_lock(path)
     engine = Operator(path, Providers(demo), int(os.getenv('OPERATOR_TIER', '4')), int(os.getenv('DAILY_TASK_LIMIT', '100')))
     handler = make_handler(engine, token, os.getenv('OPERATOR_OWNER_ID', 'owner'), os.getenv('TELEGRAM_WEBHOOK_SECRET', ''), os.getenv('TELEGRAM_OWNER_ID', ''))
-    server = ThreadingHTTPServer((os.getenv('HOST', '127.0.0.1'), int(os.getenv('PORT', '8080'))), handler)
+    server = BoundedHTTPServer((os.getenv('HOST', '127.0.0.1'), int(os.getenv('PORT', '8080'))), handler)
     print(f"Operator listening on {server.server_address}; mode={'demo' if demo else 'live'}", flush=True)
     server.serve_forever()
 

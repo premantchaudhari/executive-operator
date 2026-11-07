@@ -13,11 +13,11 @@ def validate(plan):
     if not isinstance(plan, dict) or set(plan) != {'action', 'arguments'}:
         raise ValueError('Plan must contain exactly action and arguments')
     action, args = plan['action'], plan['arguments']
-    if action not in ACTIONS or not isinstance(args, dict):
+    if not isinstance(action, str) or action not in ACTIONS or not isinstance(args, dict):
         raise ValueError('Unsupported action; payments, OTP and arbitrary browser writes are disabled')
     fields = {'gmail.read': {'query'}, 'gmail.send': {'recipient_email', 'subject', 'body'},
               'calendar.cancel': {'event_id'}, 'browser.inspect': {'url'}, 'sandbox.python': {'code'}}[action]
-    if set(args) != fields or any(not isinstance(v, str) or len(v) > 20000 for v in args.values()):
+    if set(args) != fields or any(not isinstance(v, str) or not v.strip() or len(v) > 20000 for v in args.values()):
         raise ValueError('Invalid action arguments')
     if action == 'gmail.send':
         from email.utils import parseaddr
@@ -39,14 +39,17 @@ class Operator:
         self.lock = RLock()
         self.provider, self.tier, self.daily_limit = provider, tier, daily_limit
         self.db.executescript('''PRAGMA journal_mode=WAL;
+        PRAGMA synchronous=FULL;
+        PRAGMA busy_timeout=5000;
         CREATE TABLE IF NOT EXISTS tasks(id TEXT PRIMARY KEY, owner TEXT NOT NULL,
         request_key TEXT NOT NULL, plan TEXT NOT NULL, status TEXT NOT NULL,
         result TEXT, created REAL NOT NULL, expires REAL NOT NULL,
         UNIQUE(owner, request_key));
+        CREATE INDEX IF NOT EXISTS tasks_owner_created ON tasks(owner,created);
         CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, task_id TEXT, event TEXT, at REAL);
         ''')
         # Never retry an ambiguous external write after process death.
-        self.db.execute("UPDATE tasks SET status='needs_review' WHERE status='running'")
+        self.db.execute("UPDATE tasks SET status='needs_review' WHERE status IN ('running','queued')")
 
     def event(self, task, event):
         self.db.execute('INSERT INTO audit(task_id,event,at) VALUES(?,?,?)', (task, event, time.time()))
