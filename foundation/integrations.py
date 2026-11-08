@@ -32,6 +32,14 @@ class Gateway:
         accounts=self.accounts(org,app)
         return {'app':app,'accounts':[{'id':a.id,'status':a.status} for a in accounts],'selection_required':len(accounts)>1}
     def execute(self,org,plan,account_id=None,verify=None):
+        from operator_app.core import validate
+        bound_account=plan.get('account_id')
+        if bound_account is not None:
+            if not isinstance(bound_account,str) or not bound_account.strip() or len(bound_account)>255:raise ValueError('Invalid bound account')
+            if account_id is not None and account_id!=bound_account:raise ValueError('Approved account cannot be substituted')
+            account_id=bound_account
+        plan={k:v for k,v in plan.items() if k!='account_id'}
+        validate(plan)
         action,args=plan['action'],plan['arguments']
         if action not in TOOLS:raise ValueError('Unregistered native tool')
         check_arguments(action,args)
@@ -42,6 +50,10 @@ class Gateway:
         if set(mapping)!=set(fields) or len(set(mapping.values()))!=len(mapping) or any(not isinstance(v,str) or not v for v in mapping.values()):raise ValueError('Complete reviewed argument mapping required')
         if not re.fullmatch(r'[A-Z][A-Z0-9_]+',definition.get('slug','')):raise ValueError('Invalid configured tool slug')
         if effect=='write' and verify is None:raise ValueError('Write requires provider-specific verifier; execution blocked')
+        if effect=='write' and (not isinstance(account_id,str) or not account_id.strip()):
+            raise ValueError('Writes require an explicit connected account; automatic substitution is forbidden')
+        from .disclosure import enforce
+        enforce(plan,cfg.get('allowed_destinations'))
         accounts=self.accounts(org,app)
         selected=[a for a in accounts if account_id is None or a.id==account_id]
         if not selected:raise ConnectionRequired(app)

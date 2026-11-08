@@ -12,7 +12,10 @@ from .service import authorize,enqueue
 from .policy import require_owner,permitted
 
 def canonical(plan):
-    validate(plan)
+    base={k:v for k,v in plan.items() if k!='account_id'}
+    validate(base)
+    if 'account_id' in plan and (not isinstance(plan['account_id'],str) or not plan['account_id'].strip() or len(plan['account_id'])>255):
+        raise ValueError('Invalid bound account')
     if plan['action'] not in TOOLS:
         raise HTTPException(409,'Production browser and sandbox execution require their dedicated policy gates')
     return json.dumps(plan,sort_keys=True,separators=(',',':'))
