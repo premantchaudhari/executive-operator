@@ -53,5 +53,26 @@ def finish(session,job_id,lease_token,status):
 def recover(session):
     # Never requeue expired work: a remote side effect may already have occurred.
     rows=session.execute(update(Job).where(Job.status=='running',Job.lease_until<now()).values(status='needs_review',lease_token=None,lease_until=None).returning(Job.id,Job.organization_id)).all()
-    for job_id,org in rows:session.add(AuditEvent(organization_id=org,actor='recovery',resource_id=job_id,event='job.lease_expired'))
+    from .models import ConversationTurn,Conversation,Workflow,WorkflowStep
+    for job_id,org in rows:
+        session.add(AuditEvent(organization_id=org,actor='recovery',resource_id=job_id,event='job.lease_expired'))
+        turn=session.scalar(select(ConversationTurn).where(ConversationTurn.job_id==job_id).with_for_update())
+        if turn and turn.status in ('queued','planning'):
+            turn.status='needs_review'
+            turn.response=json.dumps({'message':'Worker lease expired; reconcile planning before retrying'})
+            convo=session.get(Conversation,turn.conversation_id)
+            if convo.status=='planning':convo.status='needs_review'
+        workflow=session.scalar(select(Workflow).where(Workflow.id==job_id).with_for_update())
+        if workflow and workflow.status not in ('completed','cancelled','rejected'):
+            workflow.status='needs_review'
+            for step in session.scalars(select(WorkflowStep).where(WorkflowStep.workflow_id==job_id,WorkflowStep.status=='running')):
+                step.status='needs_review'
+                step.result=json.dumps({'message':'Worker lease expired; external outcome requires reconciliation'})
     return len(rows)
+
+
+def renew(session,job_id,token,lease_seconds=300):
+    if type(lease_seconds)!=int or not 1<=lease_seconds<=300:raise ValueError('Invalid lease duration')
+    current=now()
+    row=session.execute(update(Job).where(Job.id==job_id,Job.status=='running',Job.lease_token==token,Job.lease_until>current).values(lease_until=current+timedelta(seconds=lease_seconds)).returning(Job.id)).first()
+    if row is None:raise ValueError('Worker lease lost')

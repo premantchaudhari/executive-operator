@@ -104,6 +104,19 @@ def create_app(sessions=None,verifier=None,gateway_factory=None):
     @app.patch('/v1/organizations/{org}/members')
     def change_role(org:str,body:InviteBody,principal=Depends(identity),session:Session=Depends(db)):
         return role_change(session,org,principal,body.subject,body.role)
+    @app.post('/v1/organizations/{org}/read-data-preview')
+    def read_data_preview(org:str,body:WorkflowBody,principal=Depends(identity)):
+        from .policy import require_owner
+        from .dry_run import preview
+        import os
+        with sessions.begin() as session:require_owner(session,org,principal)
+        # Disabled until deployment supplies preview usage limits and reviewed tool mappings.
+        if os.getenv('READ_DATA_PREVIEW_ENABLED')!='true':
+            raise HTTPException(503,'Read-data preview is not enabled for this deployment')
+        try:return preview(sessions,org,principal,body.steps,gateway_factory())
+        except HTTPException:raise
+        except ValueError:raise HTTPException(400,'Invalid preview or unverified read') from None
+        except Exception:raise HTTPException(503,'Preview provider unavailable') from None
     @app.post('/v1/organizations/{org}/preview')
     def preview_workflow(org:str,body:WorkflowBody,principal=Depends(identity),session:Session=Depends(db)):
         return workflows.preview(session,org,principal,body.steps)

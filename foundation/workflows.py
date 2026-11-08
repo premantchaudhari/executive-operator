@@ -48,10 +48,20 @@ def decide(session,org,principal,wid,sid,expected_digest,approved):
     step=session.scalar(select(WorkflowStep).where(WorkflowStep.id==sid,WorkflowStep.workflow_id==wid))
     if wf.status!='awaiting_approval' or step is None or step.status!='awaiting_approval':raise HTTPException(409,'Not awaiting this decision')
     if step.digest!=expected_digest:raise HTTPException(409,'Action version changed')
+    if approved:
+        if digest(step.plan)!=step.digest:raise HTTPException(409,'Stored action integrity check failed')
+        canonical(json.loads(step.plan))
+        job=session.get(Job,wid)
+        if not permitted(session,org,job.submitted_by,principal.subject):
+            raise HTTPException(409,'Execution is paused or submitter permission was revoked')
     expires=step.approval_until
     if expires is None or expires.replace(tzinfo=now().tzinfo) <=now():raise HTTPException(409,'Approval expired; request fresh review')
+    if approved and json.loads(step.plan)['action'] in APPROVAL and not json.loads(step.plan).get('account_id'):
+        raise HTTPException(409,'Select an account through an owner edit before approval')
     step.approved_by=principal.subject if approved else None
     step.status='approved' if approved else 'rejected';wf.status='queued' if approved else 'rejected'
+    job=session.get(Job,wid)
+    if job.status=='awaiting_approval':job.status='queued' if approved else 'rejected'
     session.add(AuditEvent(organization_id=org,actor=principal.subject,resource_id=sid,event='step.'+step.status))
     return {'status':wf.status}
 
@@ -96,6 +106,9 @@ def run(sessions,wid,execute):
                 step.status='awaiting_approval';step.approval_until=now()+timedelta(minutes=15);wf.status='awaiting_approval'
                 return {'continue_run':False}
             if step.status=='approved':
+                if plan['action'] in APPROVAL and not plan.get('account_id'):
+                    step.status='awaiting_approval';step.approved_by=None;step.approval_until=now()+timedelta(minutes=15);wf.status='awaiting_approval'
+                    return {'continue_run':False}
                 if not step.approved_by or not permitted(session,wf.organization_id,job.submitted_by,step.approved_by):
                     step.status='awaiting_approval';step.approved_by=None;step.approval_until=now()+timedelta(minutes=15);wf.status='awaiting_approval'
                     return {'continue_run':False}
@@ -108,8 +121,8 @@ def run(sessions,wid,execute):
         try:
             result=execute(org,plan,sid)
             if not isinstance(result,dict) or result.get('verified') is not True:raise ValueError('Unverified outcome')
-            result_json=json.dumps(result)
-            if len(result_json)>64000:raise ValueError('Output too large')
+            result_json=json.dumps(result,ensure_ascii=False,allow_nan=False)
+            if len(result_json.encode('utf-8'))>64000:raise ValueError('Output too large')
             outcome='completed'
         except Exception:
             outcome='needs_review';result_json=json.dumps({'message':'Outcome uncertain or unverified; reconcile before retrying'})
