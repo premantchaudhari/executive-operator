@@ -69,3 +69,7 @@ Verified pause during an active provider call preserves that step's receipt, blo
 ## Approval-time integrity and authorization
 
 Approval now revalidates canonical stored plans and verifies their persisted digest before granting authority. It also checks current submitter permissions and organization pause state at decision time, in addition to dispatch-time checks. Rejection remains available while paused. Tests cover paused approval denial and tampered plan rejection. Validation: 85 foundation tests (84 passed, one PostgreSQL skip), 33 demo tests passed. Live credentials remain absent; publication and remote CI for pending local increments remain outstanding. No phase completion or full-audit acceptance claimed.
+
+## PostgreSQL publication correction
+
+GitHub PostgreSQL CI found preview audit resource IDs exceeded the schema's 36-character limit. Preview audit references now use a deterministic organization-scoped UUID derived from the proposal digest; the returned approval/preview digest remains unchanged. This fixes actual PostgreSQL truncation rather than loosening schema validation. Local full suite passes; the corrected remote run must establish PostgreSQL acceptance.
