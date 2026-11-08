@@ -42,3 +42,13 @@ Official references consulted for this increment:
 ## Carry-forward work
 
 Phase 3 is not complete. Remaining work includes real tool contract tests for every listed action, richer provider mappings, postcondition verifiers, approved connection selection/persistence, connection pause/reconnect/revoke, the missing action families above, direct OAuth where required and end-to-end account testing. Earlier Phase 1/2 gaps remain tracked; demo stays independently runnable. No production-readiness or whole-phase completion claim is made.
+
+## Owner connection lifecycle increment — 2026-11-08
+
+Added POST `.../integrations/{app}/accounts/{account_id}/reconnect` and `/revoke`, both owner-only. Gateway retrieves the exact account and checks organization identity, account ID and configured auth-config ownership before either operation. Reconnect uses a fresh hosted `link()` flow and explicitly requires account selection afterward; it does not mutate any workflow or approval. The deprecated refresh path is not used. Revoke uses the SDK revocation operation, then reads back `REVOKED` before returning `connection_disabled: true`. Already-revoked accounts return idempotently. Provider failures remain unconfirmed errors; upstream token revocation is described as best effort, never guaranteed. Credential state is never returned. Successful administrative operations have organization-scoped UUID audit references.
+
+Tests cover foreign organizations, mismatched auth configs, readback failure, repeated revoke, sanitized errors, secret exclusion and API owner authorization before provider calls. These are mocked contracts, not live SDK acceptance. SDK pinning, unsupported-provider revocation/handoff UX, a durable administrative operation ledger, connection-pause/resume state, account-selection UI, scope review and live revocation tests remain open. An active external call cannot be undone by revoking a connection.
+
+Official API/SDK references checked for this change:
+- https://docs.composio.dev/docs/auth-configuration/connected-accounts
+- https://docs.composio.dev/reference/sdk-reference/python/connected-accounts

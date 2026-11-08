@@ -178,3 +178,7 @@ Prior official references: https://developers.google.com/workspace/gmail/api/aut
 - Phase 0 makes no runtime behavior change and does not claim to complete Phases 1–11.
 
 Next executable work: Phase 1 identity/tenant schema, production API, migrations and durable job foundation. Continue independent implementation while provider credentials/verification remain pending; never mark externally unverified work complete.
+
+## Current continuation evidence
+
+The matrix above is the original audit baseline, not a current completion checklist. Current implementation and remaining work are summarized in `progress.md` and the phase documents. The 2026-11-08 continuation reconciles private main `70bd775`, closes worker cancellation/edit/late-result gaps, and adds scoped owner connection lifecycle operations. Phases 1–11 remain incomplete against their full exit gates; mocked tests do not establish controlled live acceptance.

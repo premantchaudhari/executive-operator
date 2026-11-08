@@ -23,3 +23,11 @@ Workspace continuity blocker: this checkout began at 3c3fb60, lacking later disp
 ## Reconciled worker implementation
 
 Restored unified queue dispatch, lazy integration loading, owner approval job wake-up, atomic lease renewal and periodic heartbeat into the checkout containing lease-expiry recovery. This supersedes the earlier continuity blocker for these worker features; missing unrelated branch increments still require comparison. The heartbeat is managed by a context manager and ownership is checked after planning and before every provider call. Tests exercise queue planning, approval pause/resume without replay, periodic renewal cleanup and permanent failure fencing. Validation: 90 foundation tests (89 passed, one PostgreSQL skip), 33 demo tests passed. Provider timeouts, PostgreSQL concurrency drills and full release acceptance remain open.
+
+## Cancellation, edit wake-up and late-result fencing — 2026-11-08
+
+Reconciled this checkout against private main `70bd775` using the repository tree and file hashes before modifying code. Cancellation now removes queued/approval-waiting jobs from claim eligibility and invalidates unused step approvals. Active calls keep their lease so a receipt can still be recorded, but subsequent steps remain cancelled. Editing a paused action wakes its job and presents the changed action for fresh review. API workflow mutations and worker transitions lock Job before Workflow, matching recovery's lock order.
+
+Recovered steps cannot be completed by late provider responses: late receipts are retained as reconciliation evidence and the sequence remains in review. Dispatcher checks lease ownership after provider responses and respects cancellation/rejection or a new owner decision racing final dispatch bookkeeping. Tests cover queued cancellation, in-flight cancellation with receipt preservation, paused edit/review/resume, and recovery during an external call without replay.
+
+Full local validation for this increment: 104 foundation tests (103 passed, PostgreSQL-only claim test skipped), 33 demo tests passed, dependency consistency and compilation passed. Remote PostgreSQL CI remains a separate publication gate. No live integrations or complete phase acceptance are established by these tests.

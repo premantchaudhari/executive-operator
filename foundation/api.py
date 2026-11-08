@@ -171,6 +171,26 @@ def create_app(sessions=None,verifier=None,gateway_factory=None):
     @app.post('/v1/organizations/{org}/pause')
     def pause_organization(org:str,body:PauseBody,principal=Depends(identity),session:Session=Depends(db)):
         return set_paused(session,org,principal,body.paused)
+    @app.post('/v1/organizations/{org}/integrations/{integration}/accounts/{account_id}/reconnect')
+    def integration_reconnect(org:str,integration:str,account_id:str,principal=Depends(identity),session:Session=Depends(db)):
+        return connection_action(session,org,principal,integration,account_id,'reconnect')
+    @app.post('/v1/organizations/{org}/integrations/{integration}/accounts/{account_id}/revoke')
+    def integration_revoke(org:str,integration:str,account_id:str,principal=Depends(identity),session:Session=Depends(db)):
+        return connection_action(session,org,principal,integration,account_id,'revoke')
+    def connection_action(session,org,principal,integration,account_id,operation):
+        from .policy import require_owner
+        from .integrations import ConnectionRequired
+        from .models import AuditEvent
+        from uuid import uuid5,NAMESPACE_URL
+        require_owner(session,org,principal)
+        if integration not in APPS:raise HTTPException(404,'Integration not found')
+        if not 1<=len(account_id)<=255:raise HTTPException(400,'Invalid connected account')
+        try:result=getattr(gateway_factory(),operation)(org,integration,account_id)
+        except ConnectionRequired:raise HTTPException(404,'Connected account not found') from None
+        except Exception:raise HTTPException(503,'Connection operation unconfirmed; check status before retrying') from None
+        reference=str(uuid5(NAMESPACE_URL,json.dumps([org,integration,account_id])))
+        session.add(AuditEvent(organization_id=org,actor=principal.subject,resource_id=reference,event='connection.'+operation))
+        return result
     @app.patch('/v1/organizations/{org}/workflows/{wid}/steps/{sid}')
     def edit_workflow_step(org:str,wid:str,sid:str,body:EditBody,principal=Depends(identity),session:Session=Depends(db)):
         return workflows.edit_step(session,org,principal,wid,sid,body.digest,body.plan)

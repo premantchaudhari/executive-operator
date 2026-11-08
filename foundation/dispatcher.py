@@ -20,7 +20,10 @@ def dispatch_once(sessions,planner,gateway):
                 heartbeat.check();result=planner(context);heartbeat.check();return result
             class LeasedGateway:
                 def execute(self,*args,**kwargs):
-                    heartbeat.check();return gateway.execute(*args,**kwargs)
+                    heartbeat.check()
+                    result=gateway.execute(*args,**kwargs)
+                    heartbeat.check()
+                    return result
             if tid:plan_turn(sessions,tid,leased_planner)
             with sessions() as s:
                 has_workflow=s.get(Workflow,jid) is not None
@@ -37,6 +40,12 @@ def dispatch_once(sessions,planner,gateway):
         job=s.scalar(select(Job).where(Job.id==jid).with_for_update())
         if job.status!='running' or job.lease_token!=token or job.lease_until.replace(tzinfo=now().tzinfo)<=now():
             raise ValueError('Dispatch lease lost; reconcile before retrying')
+        workflow=s.scalar(select(Workflow).where(Workflow.id==jid).with_for_update())
+        if workflow:
+            if workflow.status in ('cancelled','rejected'):outcome=workflow.status
+            elif outcome=='awaiting_approval' and workflow.status=='queued':
+                # Owner decision/edit raced the dispatcher's final bookkeeping.
+                outcome='queued'
         job.status=outcome;job.lease_token=None;job.lease_until=None
         s.add(AuditEvent(organization_id=org,actor='dispatcher',resource_id=jid,event='job.'+outcome))
     return {'job_id':jid,'status':outcome}

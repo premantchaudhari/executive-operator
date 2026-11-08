@@ -34,6 +34,9 @@ def create(session,org,principal,key,instruction,plans):
 
 def scoped(session,org,principal,wid,write=False):
     authorize(session,org,principal,write)
+    # Match recovery's Job -> Workflow lock order across API and worker paths.
+    job=session.scalar(select(Job).where(Job.id==wid,Job.organization_id==org).with_for_update())
+    if job is None:raise HTTPException(404,'Workflow not found')
     wf=session.scalar(select(Workflow).where(Workflow.id==wid,Workflow.organization_id==org).with_for_update())
     if wf is None:raise HTTPException(404,'Workflow not found')
     return wf
@@ -69,6 +72,11 @@ def cancel(session,org,principal,wid):
     wf=scoped(session,org,principal,wid,True)
     if wf.status=='completed':raise HTTPException(409,'Completed workflow cannot be cancelled')
     wf.status='cancelled'
+    job=session.get(Job,wid)
+    # An in-flight call keeps its lease until dispatch records its final outcome.
+    if job.status in ('queued','awaiting_approval'):job.status='cancelled'
+    for step in session.scalars(select(WorkflowStep).where(WorkflowStep.workflow_id==wid,WorkflowStep.status.in_(('pending','approved','awaiting_approval')))):
+        step.status='cancelled';step.approved_by=None;step.approval_until=None
     session.add(AuditEvent(organization_id=org,actor=principal.subject,resource_id=wid,event='workflow.cancelled'))
     return {'status':wf.status}
 
@@ -84,6 +92,7 @@ def run(sessions,wid,execute):
     """
     def advance(state):
         with sessions.begin() as session:
+            job=session.scalar(select(Job).where(Job.id==wid).with_for_update())
             wf=session.scalar(select(Workflow).where(Workflow.id==wid).with_for_update())
             if wf is None:raise ValueError('Unknown workflow')
             job=session.get(Job,wid)
@@ -127,8 +136,16 @@ def run(sessions,wid,execute):
         except Exception:
             outcome='needs_review';result_json=json.dumps({'message':'Outcome uncertain or unverified; reconcile before retrying'})
         with sessions.begin() as session:
+            session.scalar(select(Job).where(Job.id==wid).with_for_update())
             wf=session.scalar(select(Workflow).where(Workflow.id==wid).with_for_update())
-            step=session.get(WorkflowStep,sid);step.status=outcome;step.result=result_json
+            step=session.get(WorkflowStep,sid)
+            if step.status!='running' or wf.status=='needs_review':
+                # Recovery owns the state after lease loss; a late response is
+                # evidence for reconciliation, never authority to resume work.
+                step.result=json.dumps({'message':'Late provider outcome; reconcile before retrying','late_result':json.loads(result_json)})
+                session.add(AuditEvent(organization_id=org,actor='worker',resource_id=sid,event='step.late_result_requires_reconciliation'))
+                return {'continue_run':False}
+            step.status=outcome;step.result=result_json
             session.add(AuditEvent(organization_id=org,actor='worker',resource_id=sid,event='step.'+outcome))
             if wf.status=='cancelled':return {'continue_run':False}
             wf.status='queued' if outcome=='completed' else 'needs_review'
@@ -149,6 +166,8 @@ def edit_step(session,org,principal,wid,sid,expected_digest,plan):
     encoded=canonical(plan)
     step.plan=encoded;step.digest=digest(encoded);step.status='pending';step.approved_by=None;step.approval_until=None
     wf.status='queued'
+    job=session.get(Job,wid)
+    if job.status=='awaiting_approval':job.status='queued'
     session.add(AuditEvent(organization_id=org,actor=principal.subject,resource_id=sid,event='step.edited_approval_invalidated'))
     return {'digest':step.digest,'status':step.status}
 

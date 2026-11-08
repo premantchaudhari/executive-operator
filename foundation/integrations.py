@@ -31,6 +31,29 @@ class Gateway:
     def status(self,org,app):
         accounts=self.accounts(org,app)
         return {'app':app,'accounts':[{'id':a.id,'status':a.status} for a in accounts],'selection_required':len(accounts)>1}
+    def owned_account(self,org,app,account_id):
+        cfg=self.settings(app)
+        if not isinstance(account_id,str) or not 1<=len(account_id)<=255:raise ValueError('Invalid connected account')
+        account=self.client.connected_accounts.get(account_id)
+        if account.id!=account_id or account.user_id!=self.identity(org) or account.auth_config.id!=cfg['auth_config_id']:
+            raise ConnectionRequired(app)
+        return account
+    def reconnect(self,org,app,account_id):
+        # The hosted flow may produce a different upstream account. Never swap
+        # a workflow's selected account or reuse approval from the old grant.
+        self.owned_account(org,app,account_id)
+        return {**self.connect(org,app),'previous_account_id':account_id,
+                'status':'authorization_required','requires_account_selection':True}
+    def revoke(self,org,app,account_id):
+        account=self.owned_account(org,app,account_id)
+        if account.status!='REVOKED':
+            self.client.connected_accounts.revoke(account_id)
+            account=self.owned_account(org,app,account_id)
+        if account.status!='REVOKED':raise RuntimeError('Connection revocation not confirmed')
+        # Composio documents upstream token revocation as best effort. A
+        # REVOKED connection proves local provider disablement, not remote purge.
+        return {'app':app,'account_id':account_id,'status':'REVOKED',
+                'connection_disabled':True,'upstream_revocation':'best_effort'}
     def execute(self,org,plan,account_id=None,verify=None):
         from operator_app.core import validate
         bound_account=plan.get('account_id')
