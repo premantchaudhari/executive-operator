@@ -6,7 +6,7 @@ from foundation import workflows
 from foundation.models import Workflow,WorkflowStep
 from foundation.auth import Principal
 READ={'action':'gmail.read','arguments':{'query':'is:unread'}}
-SEND={'action':'gmail.send','arguments':{'recipient_email':'client@example.com','subject':'Review','body':'Exact approved body'}}
+SEND={'account_id':'account-a','action':'gmail.send','arguments':{'recipient_email':'client@example.com','subject':'Review','body':'Exact approved body'}}
 class WorkflowTests(unittest.TestCase):
     setUp=fixtures.FoundationTests.setUp
     tearDown=fixtures.FoundationTests.tearDown

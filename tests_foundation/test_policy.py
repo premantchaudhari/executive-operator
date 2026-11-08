@@ -85,3 +85,48 @@ class PolicyTests(unittest.TestCase):
         updated=self.state(wid)['steps'][0]
         self.assertNotEqual(step['digest'],updated['digest']);self.assertEqual(updated['status'],'pending')
         calls=[];workflows.run(self.sessions,wid,lambda *a:calls.append(a));self.assertEqual(calls,[])
+
+    def test_unbound_write_cannot_be_approved(self):
+        plan={k:v for k,v in fixtures.SEND.items() if k!='account_id'}
+        wid=self.create([plan]);workflows.run(self.sessions,wid,lambda *a:None)
+        step=self.state(wid)['steps'][0]
+        with self.sessions.begin() as s:
+            with self.assertRaises(HTTPException):workflows.decide(s,'a',Principal('alice'),wid,step['id'],step['digest'],True)
+        with self.sessions.begin() as s:workflows.edit_step(s,'a',Principal('alice'),wid,step['id'],step['digest'],fixtures.SEND)
+        workflows.run(self.sessions,wid,lambda *a:None);self.approve(wid)
+        calls=[];workflows.run(self.sessions,wid,lambda *a:(calls.append(a) or {'verified':True}))
+        self.assertEqual(len(calls),1);self.assertEqual(calls[0][1]['account_id'],'account-a')
+
+    def test_pause_during_call_stops_next_step_and_keeps_receipt(self):
+        wid=self.create([fixtures.READ,fixtures.READ]);calls=[]
+        def execute(*args):
+            calls.append(args)
+            with self.sessions.begin() as s:policy.set_paused(s,'a',Principal('alice'),True)
+            return {'verified':True,'receipt':'first-read'}
+        workflows.run(self.sessions,wid,execute)
+        self.assertEqual(len(calls),1)
+        self.assertEqual(self.state(wid)['steps'][0]['result']['receipt'],'first-read')
+        with self.sessions.begin() as s:policy.set_paused(s,'a',Principal('alice'),False)
+        workflows.run(self.sessions,wid,lambda *args:(calls.append(args) or {'verified':True}))
+        self.assertEqual(len(calls),2);self.assertEqual(self.state(wid)['status'],'completed')
+    def test_nonfinite_result_requires_review(self):
+        wid=self.create([fixtures.READ])
+        workflows.run(self.sessions,wid,lambda *args:{'verified':True,'value':float('nan')})
+        self.assertEqual(self.state(wid)['status'],'needs_review')
+    def test_multibyte_result_limit_measures_bytes(self):
+        wid=self.create([fixtures.READ])
+        workflows.run(self.sessions,wid,lambda *args:{'verified':True,'value':'界'*22000})
+        self.assertEqual(self.state(wid)['status'],'needs_review')
+
+    def test_paused_org_cannot_grant_new_approval(self):
+        wid=self.create([fixtures.SEND]);workflows.run(self.sessions,wid,lambda *a:None)
+        with self.sessions.begin() as s:policy.set_paused(s,'a',Principal('alice'),True)
+        with self.assertRaises(HTTPException):self.approve(wid)
+        self.assertEqual(self.state(wid)['status'],'awaiting_approval')
+    def test_corrupt_stored_plan_cannot_receive_approval(self):
+        from foundation.models import WorkflowStep
+        wid=self.create([fixtures.SEND]);workflows.run(self.sessions,wid,lambda *a:None)
+        step=self.state(wid)['steps'][0]
+        with self.sessions.begin() as s:s.get(WorkflowStep,step['id']).plan=s.get(WorkflowStep,step['id']).plan.replace('Exact approved body','Tampered content')
+        with self.sessions.begin() as s:
+            with self.assertRaises(HTTPException):workflows.decide(s,'a',Principal('alice'),wid,step['id'],step['digest'],True)
