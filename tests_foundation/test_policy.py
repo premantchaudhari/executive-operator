@@ -75,3 +75,13 @@ class PolicyTests(unittest.TestCase):
             self.assertEqual(len(workflows.exceptions(s,'a',Principal('alice'))['workflows']),1)
             self.assertEqual(workflows.exceptions(s,'b',Principal('bob'))['workflows'],[])
             with self.assertRaises(HTTPException):workflows.exceptions(s,'a',Principal('reader'))
+
+    def test_account_edit_invalidates_approval_digest(self):
+        plan={**fixtures.SEND,'account_id':'account-a'}
+        wid=self.create([plan]);workflows.run(self.sessions,wid,lambda *a:None)
+        step=self.state(wid)['steps'][0]
+        with self.sessions.begin() as s:workflows.decide(s,'a',Principal('alice'),wid,step['id'],step['digest'],True)
+        with self.sessions.begin() as s:workflows.edit_step(s,'a',Principal('alice'),wid,step['id'],step['digest'],{**plan,'account_id':'account-b'})
+        updated=self.state(wid)['steps'][0]
+        self.assertNotEqual(step['digest'],updated['digest']);self.assertEqual(updated['status'],'pending')
+        calls=[];workflows.run(self.sessions,wid,lambda *a:calls.append(a));self.assertEqual(calls,[])

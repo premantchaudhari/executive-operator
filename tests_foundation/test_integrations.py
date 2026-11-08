@@ -39,3 +39,30 @@ class IntegrationTests(unittest.TestCase):
         self.client.connected_accounts.list.return_value.items.append(Obj(id='other',user_id='organization:a',status='ACTIVE',auth_config=Obj(id='auth')))
         with self.assertRaises(ValueError):self.gateway.execute('a',self.plan)
         self.client.tools.execute.assert_not_called()
+
+    def test_write_without_explicit_account_never_dispatches(self):
+        self.config['googlesheets']['tools']['sheets.append']={'slug':'SHEETS_APPEND','version':'20261101_00','argument_map':{'spreadsheet_id':'spreadsheetId','range':'range','values_json':'values'}}
+        plan={'action':'sheets.append','arguments':{'spreadsheet_id':'s','range':'A1','values_json':'[[1]]'}}
+        with self.assertRaisesRegex(ValueError,'explicit connected account'):
+            self.gateway.execute('a',plan,verify=lambda *args:True)
+        self.client.tools.execute.assert_not_called()
+    def test_revoked_explicit_account_never_substituted(self):
+        with self.assertRaises(ConnectionRequired):self.gateway.execute('a',self.plan,account_id='revoked-account')
+        self.client.tools.execute.assert_not_called()
+
+    def test_gateway_rejects_email_header_injection_before_provider(self):
+        plan={'action':'gmail.send','arguments':{'recipient_email':'client@example.com\r\nBcc:other@example.com','subject':'Hi','body':'Private'}}
+        with self.assertRaises(ValueError):self.gateway.execute('a',plan,account_id='account-a',verify=lambda *args:True)
+        self.client.tools.execute.assert_not_called()
+    def test_gateway_rejects_unexpected_plan_fields(self):
+        with self.assertRaises(ValueError):self.gateway.execute('a',{**self.plan,'organization_id':'b'})
+        self.client.tools.execute.assert_not_called()
+
+    def test_bound_account_cannot_be_overridden(self):
+        with self.assertRaisesRegex(ValueError,'cannot be substituted'):
+            self.gateway.execute('a',{**self.plan,'account_id':'account-a'},account_id='other')
+        self.client.tools.execute.assert_not_called()
+    def test_bound_account_used_for_provider_dispatch(self):
+        self.client.tools.execute.return_value={'successful':True,'data':{}}
+        self.gateway.execute('a',{**self.plan,'account_id':'account-a'})
+        self.assertEqual(self.client.tools.execute.call_args.kwargs['connected_account_id'],'account-a')
