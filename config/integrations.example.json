@@ -1,6 +1,7 @@
 {
   "gmail": {
     "auth_config_id": "",
+    "verification_contract": "",
     "tools": {
       "gmail.read": {
         "slug": "",
@@ -12,11 +13,19 @@
       "gmail.send": {
         "slug": "",
         "version": "",
+        "result_path": "",
         "argument_map": {
           "recipient_email": "recipient_email",
           "subject": "subject",
           "body": "body"
         }
+      },
+      "gmail.get": {
+        "slug": "",
+        "version": "",
+        "result_path": "",
+        "defaults": {"user_id": "me", "format": "full"},
+        "argument_map": {"message_id": "message_id"}
       }
     }
   },

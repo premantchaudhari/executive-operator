@@ -73,3 +73,7 @@ Approval now revalidates canonical stored plans and verifies their persisted dig
 ## PostgreSQL publication correction
 
 GitHub PostgreSQL CI found preview audit resource IDs exceeded the schema's 36-character limit. Preview audit references now use a deterministic organization-scoped UUID derived from the proposal digest; the returned approval/preview digest remains unchanged. This fixes actual PostgreSQL truncation rather than loosening schema validation. Local full suite passes; the corrected remote run must establish PostgreSQL acceptance.
+
+## Gmail sent-copy evidence
+
+Production Gmail dispatch retains exact owner approval, explicit account binding, current permissions and destination allowlisting. Its opt-in verifier requires reviewed send and exact-message-read mappings before sending, then checks a sent copy using the same account. Subject header line breaks are rejected before provider dispatch. A failed postcondition retains a returned message ID for reconciliation and stops the sequence without retry; it does not become a resumable connection pause after a send may have occurred. Verified sent-copy evidence explicitly does not prove recipient delivery. Readback cannot undo an incorrect send, so deployment schema review and controlled live validation remain mandatory.

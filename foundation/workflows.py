@@ -11,6 +11,7 @@ from .models import Workflow,WorkflowStep,AuditEvent,Job,now,identifier
 from .service import authorize,enqueue
 from .policy import require_owner,permitted
 from .integrations import ConnectionRequired
+from .gmail_verification import SentMessageUnconfirmed
 
 def canonical(plan):
     base={k:v for k,v in plan.items() if k!='account_id'}
@@ -134,6 +135,10 @@ def run(sessions,wid,execute):
             result_json=json.dumps(result,ensure_ascii=False,allow_nan=False)
             if len(result_json.encode('utf-8'))>64000:raise ValueError('Output too large')
             outcome='completed'
+        except SentMessageUnconfirmed as error:
+            outcome='needs_review'
+            result_json=json.dumps({'message':'Send returned an ID but its postcondition is unconfirmed; reconcile before retrying',
+                                    'evidence':{'message_id':error.message_id,'sent_copy_confirmed':False,'delivery_confirmed':False}})
         except ConnectionRequired:
             # This exception is reserved for pre-dispatch account absence.
             # A provider timeout/auth failure after dispatch stays uncertain.

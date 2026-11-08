@@ -4,7 +4,7 @@ The provider-independent registry covers seven services and 14 actions. These ar
 
 | Service | Current contracts | Remaining full-scope actions |
 |---|---|---|
-| Gmail | Search/read query, exact-recipient send | Threads, draft lifecycle, attachments, reply identity |
+| Gmail | Search/read query, exact message retrieval, opt-in send with sent-copy readback verification | Threads, draft lifecycle, attachments, reply identity, live schema acceptance |
 | Calendar | Read window, create event, cancel by ID | Updates, attendee resolution, conflict detection |
 | Drive | Search and read by ID | Upload, controlled sharing and downloads/artifact pipeline |
 | Sheets | Read range, append JSON rows | Typed updates, concurrency and formula policies |
@@ -62,3 +62,9 @@ After completing the hosted connection flow, the owner must explicitly select an
 Resume only accepts a job fully parked in `awaiting_connection`; a concurrent request before the dispatcher releases its lease receives 409 and may be retried after the visible job status updates. Duplicate resume, stale digests, inactive/foreign accounts and cancelled or uncertain workflows cannot requeue work. Gateway failures after dispatch or during postcondition verification remain `needs_review`, even if the exception concerns a connection. They cannot use this resume path to repeat an uncertain effect.
 
 Tests cover restart-style API resume, completed-step preservation, ambiguous accounts through the actual gateway with a fake SDK client, write approval invalidation, inactive/foreign accounts, cross-tenant/viewer denial, pause/cancel, repeated resume and sanitized verification failure. These tests do not establish live consent, SDK compatibility or actual delivery. Provider verifiers, rich resource resolution, scope review, bounded SDK calls and user-facing connection UI remain dependencies before the complete acceptance journey is available.
+
+## First built-in provider postcondition — Gmail
+
+The registry now has 15 actions across seven services. `gmail.get(message_id)` adds an exact resource read contract. An explicitly configured `google.gmail.sent_plaintext.v1` verifier can check a Gmail send through the production gateway/worker without an injected generic verifier. It reads the returned message ID through the same bound account, checks the sent-copy state and exact approved content, then records evidence distinguishing sent-copy confirmation from recipient delivery. Failed readback leaves the workflow in review with its returned ID, never a reconnect retry or automatic resend. All other write tools still require their own reviewed provider handlers.
+
+See `gmail-verification.md` for strict schema configuration, scope and MIME limits, failure semantics and external acceptance gates. This supersedes the earlier statement that no postcondition handlers exist; it does not establish complete Phase 3 or A02 acceptance. Tests use a fake SDK client through the actual production gateway and dispatcher; no live email was sent.

@@ -2,6 +2,8 @@
 
 Private pilot for a business owner to delegate bounded tasks and approve exact external changes. Python 3.12+, no dependencies for the demo. Not a production multi-tenant SaaS.
 
+The full-product Python foundation is developed separately from the demonstration below. See [current phase progress](docs/progress.md), [full scope](docs/phase-0-scope-and-backlog.md), and [foundation setup](docs/phase-1-foundation.md). Historical pilot limits below describe the demo/legacy server, not a reduction of the agreed full-product backlog. Live acceptance and production release gates remain open.
+
 ## Run in five minutes
 
 ```bash

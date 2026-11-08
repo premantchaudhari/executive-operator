@@ -27,6 +27,8 @@ def validate(plan):
     if action == 'gmail.send':
         from email.utils import parseaddr
         address = args['recipient_email']
+        if any(c in args['subject'] for c in '\r\n'):
+            raise ValueError('Email subject cannot contain header line breaks')
         if parseaddr(address)[1] != address or '@' not in address or any(c in address for c in '\r\n,;'):
             raise ValueError('Use one plain recipient email address')
     if action == 'browser.inspect':

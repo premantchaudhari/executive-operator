@@ -1,6 +1,7 @@
 """Provider-independent contracts. Tool slugs/versions are never model-selected."""
 TOOLS={
  'gmail.read':('gmail','read',('query',)),
+ 'gmail.get':('gmail','read',('message_id',)),
  'gmail.send':('gmail','write',('recipient_email','subject','body')),
  'calendar.read':('googlecalendar','read',('calendar_id','time_min','time_max')),
  'calendar.create':('googlecalendar','write',('calendar_id','title','start','end','timezone')),
@@ -25,6 +26,9 @@ def check_arguments(action,args):
     from datetime import datetime
     app,effect,fields=TOOLS[action]
     if set(args)!=set(fields) or any(not isinstance(v,str) or not v.strip() or len(v)>20000 for v in args.values()):raise ValueError('Invalid native tool arguments')
+    if action=='gmail.get':
+        import re
+        if not re.fullmatch(r'[A-Za-z0-9_-]{1,255}',args['message_id']):raise ValueError('Invalid Gmail message ID')
     if action=='sheets.append':
         rows=json.loads(args['values_json'])
         if not isinstance(rows,list) or not 1<=len(rows)<=1000 or any(not isinstance(r,list) or len(r)>100 or any(type(v) not in (str,int,float,bool,type(None)) for v in r) for r in rows):raise ValueError('Expected bounded JSON rows')

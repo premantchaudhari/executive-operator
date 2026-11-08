@@ -7,7 +7,7 @@ Full scope authority: `phase-0-scope-and-backlog.md`. Original baseline matrix r
 | 0 | Feature matrix, risks, scenarios and phase order documented | Maintain traceability and provider feasibility evidence |
 | 1 | Tenant API/RBAC, migrations, admission reservations, leased jobs | Login/team UI, storage delivery, settlement, operations verification |
 | 2 | Conversations, configurable planners, persisted sequential LangGraph, unified worker, heartbeat/recovery, cancellation | Typed step dataflow, resource ambiguity, playbooks/memory, progress delivery, broader recovery drills |
-| 3 | Seven-service/14-action registry, scoped account binding, modern connection links, owner reconnect/revoke, durable connection pause and owner-selected resume | Richer tools, direct OAuth, resource resolution, provider postcondition handlers, connection UI, locked/live SDK contracts |
+| 3 | Seven-service/15-action registry, scoped account binding, modern connection links, owner reconnect/revoke, durable connection pause/resume, opt-in Gmail sent-copy verification and exact-message read | Richer tools, direct OAuth, resource resolution, remaining write verifiers, connection UI, locked/live SDK contracts |
 | 4 | Exact-action owner approvals, edits invalidate grants, expiry, pause, exceptions and preview APIs | Full cross-layer policy gates, account/resource verification UX, bounded preview usage and live evidence |
 | 5 | Browser fingerprint and network policy primitives | Isolated authenticated sessions, autonomous actions, screenshots, approval continuation, enforced egress and downloads |
 | 6 | E2B execution primitive and cleanup/deadline tests | Provider resource verification, shell/packages, scanned uploads, controlled networking, Excel pipeline and private artifacts |
@@ -19,19 +19,19 @@ Full scope authority: `phase-0-scope-and-backlog.md`. Original baseline matrix r
 
 ## This increment
 
-- Reconciled authoritative private main `a5b66cc` with the older local checkout using tracked blob hashes, preserving published lifecycle fixes and connection management. A local continuation lock prevents simultaneous work in this checkout; publishing also checks the expected remote main SHA.
-- Persisted pre-dispatch account absence/ambiguity as `awaiting_connection` across job/workflow/step; no automatic queue retry.
-- Added an owner-only connection-resume API with exact-digest, tenant, role, pause, active-account and auth-config verification.
-- Resume binds the selected account and invalidates prior approval; completed steps are not repeated and writes need fresh review.
-- Cancellation and the exception inbox include connection waits. Stale/replayed resume and uncertain provider failures cannot use the new path to repeat effects.
-- Kept post-dispatch connection failures in review; only pre-dispatch failures may become resumable connection pauses.
+- Reconciled authoritative private main `89cd04a` with the older local checkout using tracked blob hashes. A local continuation lock prevents simultaneous work here; publication checks the expected remote main SHA.
+- Added `gmail.get(message_id)` for exact message resource retrieval and a strict opt-in Gmail sent-copy postcondition handler used by the production gateway/worker.
+- The handler requires reviewed send/readback configuration before dispatch, checks the same account, message ID, sent state, recipient, subject and plaintext body, and persists evidence without claiming recipient delivery.
+- Failed postconditions retain returned message IDs for reconciliation and stop without resend. Post-send account revocation cannot become a resumable connection pause.
+- Added reviewed response projection/static defaults with mapped-argument collision rejection, bounded UTF-8 provider output and subject header-injection rejection.
+- Updated the disabled-by-default configuration example, verification runbook and README navigation to distinguish the full-product foundation from the separate pilot/demo.
 
-Validation: 116 foundation tests, 115 passed and one local PostgreSQL skip; 33 demo tests passed; `pip check` and compilation passed. This increment's remote CI must run after publication. Previous code commit `a5b66cc` passed [Core tests](https://github.com/premantchaudhari/executive-operator/actions/runs/42476542201) and [PostgreSQL tests with migration rollback/reapply](https://github.com/premantchaudhari/executive-operator/actions/runs/42476542252).
+Validation: 130 foundation tests, 129 passed and one local PostgreSQL skip; 33 demo tests passed; `pip check` and compilation passed. This increment's remote CI must run after publication. Previous code commit `89cd04a` passed [Core tests](https://github.com/premantchaudhari/executive-operator/actions/runs/42480818010) and [PostgreSQL tests with migration rollback/reapply](https://github.com/premantchaudhari/executive-operator/actions/runs/42480817932).
 
 ## Next implementation path
 
 1. Expand PostgreSQL worker concurrency/recovery drills and keep uncertain-write review; connection-pause/resume is implemented but live unverified.
-2. Complete native account/resource resolution and reviewed provider postconditions, then typed step dataflow for email → HubSpot → Sheets → exact draft → approval → verified send/evidence.
+2. Complete native account/resource resolution, HubSpot/Sheets and other write postconditions, then typed step dataflow for email → HubSpot → Sheets → exact draft → approval → verified send/evidence. The first Gmail verifier is implemented but live unverified.
 3. Production PWA, browser sessions/actions, E2B/files, Telegram, schedules/outbox, usage/billing and complete resettable demo, in the agreed dependency order.
 4. Full source/security/UX/integration/operations audit and release gates.
 

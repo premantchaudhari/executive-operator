@@ -55,6 +55,20 @@ class Gateway:
         # REVOKED connection proves local provider disablement, not remote purge.
         return {'app':app,'account_id':account_id,'status':'REVOKED',
                 'connection_disabled':True,'upstream_revocation':'best_effort'}
+    def definition(self,action):
+        from .gmail_verification import pointer_path
+        app,_,fields=TOOLS[action];cfg=self.settings(app)
+        definition=cfg.get('tools',{}).get(action)
+        if not definition or not re.fullmatch(r'\d{8}_\d{2}',definition.get('version','')):raise ValueError('Reviewed dated tool version required')
+        mapping=definition.get('argument_map',{})
+        if set(mapping)!=set(fields) or len(set(mapping.values()))!=len(mapping) or any(not isinstance(v,str) or not v for v in mapping.values()):raise ValueError('Complete reviewed argument mapping required')
+        if not re.fullmatch(r'[A-Z][A-Z0-9_]+',definition.get('slug','')):raise ValueError('Invalid configured tool slug')
+        defaults=definition.get('defaults',{})
+        if not isinstance(defaults,dict) or set(defaults)&set(mapping.values()) or any(not isinstance(k,str) or not k for k in defaults):
+            raise ValueError('Reviewed defaults cannot override mapped arguments')
+        if len(json.dumps(defaults,allow_nan=False).encode())>4000:raise ValueError('Defaults exceed cap')
+        pointer_path(definition.get('result_path',''))
+        return cfg,definition,mapping
     def execute(self,org,plan,account_id=None,verify=None):
         from operator_app.core import validate
         bound_account=plan.get('account_id')
@@ -67,13 +81,17 @@ class Gateway:
         action,args=plan['action'],plan['arguments']
         if action not in TOOLS:raise ValueError('Unregistered native tool')
         check_arguments(action,args)
-        app,effect,fields=TOOLS[action];cfg=self.settings(app)
-        definition=cfg.get('tools',{}).get(action)
-        if not definition or not re.fullmatch(r'\d{8}_\d{2}',definition.get('version','')):raise ValueError('Reviewed dated tool version required')
-        mapping=definition.get('argument_map',{})
-        if set(mapping)!=set(fields) or len(set(mapping.values()))!=len(mapping) or any(not isinstance(v,str) or not v for v in mapping.values()):raise ValueError('Complete reviewed argument mapping required')
-        if not re.fullmatch(r'[A-Z][A-Z0-9_]+',definition.get('slug','')):raise ValueError('Invalid configured tool slug')
-        if effect=='write' and verify is None:raise ValueError('Write requires provider-specific verifier; execution blocked')
+        app,effect,fields=TOOLS[action];cfg,definition,mapping=self.definition(action)
+        builtin=False
+        if effect=='write' and verify is None:
+            from .gmail_verification import CONTRACT
+            if action!='gmail.send' or cfg.get('verification_contract')!=CONTRACT:
+                raise ValueError('Write requires provider-specific verifier; execution blocked')
+            # Validate readback configuration before any send can be dispatched.
+            self.definition('gmail.get')
+            if 'result_path' not in definition or 'result_path' not in cfg['tools']['gmail.get']:
+                raise ValueError('Explicit reviewed send/readback result paths required')
+            builtin=True
         if effect=='write' and (not isinstance(account_id,str) or not account_id.strip()):
             raise ValueError('Writes require an explicit connected account; automatic substitution is forbidden')
         from .disclosure import enforce
@@ -82,17 +100,27 @@ class Gateway:
         selected=[a for a in accounts if account_id is None or a.id==account_id]
         if not selected:raise ConnectionRequired(app)
         if len(selected)!=1:raise ConnectionRequired(app)
-        params={mapping[k]:(json.loads(v) if k=='values_json' else v) for k,v in args.items()}
+        params={**definition.get('defaults',{}),**{mapping[k]:(json.loads(v) if k=='values_json' else v) for k,v in args.items()}}
         try:
             response=self.client.tools.execute(definition['slug'],user_id=self.identity(org),connected_account_id=selected[0].id,version=definition['version'],arguments=params)
         except ConnectionRequired:
             raise RuntimeError('Connection failure after dispatch requires reconciliation') from None
         if not isinstance(response,dict) or response.get('successful') is not True:raise RuntimeError('Native tool failed')
-        data=response.get('data')
-        encoded=json.dumps(data)
-        if len(encoded)>64000:raise ValueError('Provider output exceeds cap')
-        try:verified=effect=='read' or verify(plan,response)
+        from .gmail_verification import project,message_id,verify_sent,SentMessageUnconfirmed
+        raw_data=response.get('data')
+        if len(json.dumps(raw_data,ensure_ascii=False,allow_nan=False).encode())>64000:raise ValueError('Provider output exceeds cap')
+        data=project(raw_data,definition.get('result_path',''));evidence=None
+        try:
+            if builtin:
+                mid=message_id(data)
+                try:
+                    readback=self.execute(org,{'action':'gmail.get','account_id':selected[0].id,'arguments':{'message_id':mid}})
+                    evidence=verify_sent(plan,readback['data'],mid);verified=True
+                except Exception:raise SentMessageUnconfirmed(mid) from None
+            else:verified=effect=='read' or verify(plan,response)
         except ConnectionRequired:
             raise RuntimeError('Connection failure during verification requires reconciliation') from None
         if verified is not True:raise RuntimeError('Provider postcondition unverified')
-        return {'verified':True,'app':app,'action':action,'account_id':selected[0].id,'data':data}
+        result={'verified':True,'app':app,'action':action,'account_id':selected[0].id,'data':data}
+        if evidence:result['evidence']=evidence
+        return result
