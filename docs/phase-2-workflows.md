@@ -13,3 +13,13 @@ The executor contract is an internal reviewed adapter that returns `verified: tr
 Conversational history, clarification state, natural-language multi-step planning with Gemini/Claude, typed inter-step outputs, recipient resolution, checkpoint/job-ledger integration, background dispatch, abandoned-step reconciliation, progress delivery, business memory, playbook versions and full policy classification remain open. This increment uses database rows as the sole durable progression authority; it does not pretend to have implemented a second LangGraph checkpointer. Existing budget allocation is not yet a verified whole-workflow cost ceiling.
 
 Remaining Phase 1 browser login/invitation UI, storage delivery, budget settlement and operational controls carry forward. Full scope remains recorded in phase-0-scope-and-backlog.md. This is a tested execution increment, not a claim that all Phase 2 acceptance criteria are complete.
+
+## Lease-expiry reconciliation
+
+Recovery now marks abandoned queued/planning conversation turns and their planning conversation as needs_review. Nonterminal workflows and running steps are also placed into review without retrying external effects. Terminal completed/cancelled/rejected workflows are preserved. Regression coverage verifies abandoned planner visibility and idempotent recovery. Validation in this workspace: 86 foundation tests (85 passed, one PostgreSQL skip), 33 demo tests passed.
+
+Workspace continuity blocker: this checkout began at 3c3fb60, lacking later dispatcher/heartbeat commits reported in chat. This isolated service recovery change must be reconciled with that newer work before publishing; do not overwrite remote or claim all later commits are present. Publication, remote CI and live-provider tests remain pending.
+
+## Reconciled worker implementation
+
+Restored unified queue dispatch, lazy integration loading, owner approval job wake-up, atomic lease renewal and periodic heartbeat into the checkout containing lease-expiry recovery. This supersedes the earlier continuity blocker for these worker features; missing unrelated branch increments still require comparison. The heartbeat is managed by a context manager and ownership is checked after planning and before every provider call. Tests exercise queue planning, approval pause/resume without replay, periodic renewal cleanup and permanent failure fencing. Validation: 90 foundation tests (89 passed, one PostgreSQL skip), 33 demo tests passed. Provider timeouts, PostgreSQL concurrency drills and full release acceptance remain open.
