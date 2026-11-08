@@ -19,3 +19,23 @@ Hourly continuation is now enabled by user request. The initial half-hour limita
 Production workflows now reject browser/sandbox actions before enqueue and again before dispatch until dedicated cross-layer policies exist. Preview validates exact native plans and exposes write-approval requirements without creating jobs, reserving budget, calling providers, or approving anything. It is an offline preview, not the real-data dry run required by F37. Owner-only exception listing is tenant scoped. Expired reviews can be refreshed without granting approval; the original digest remains required. Added regression checks for rejection, replay, expired-review recovery and approver demotion.
 
 Validation: 47 foundation tests (46 passed, one PostgreSQL-only check deferred to CI), 33 legacy demo tests passed locally. Phase 4 remains open: exact connected-account/resource binding, disclosure destinations and real-data dry run are not implemented, and browser/sandbox cross-layer enforcement requires phases 5/6. No phase-complete claim is justified by the offline tests. Next continuation must close those requirements rather than advance the phase label.
+
+## Account substitution guard
+
+Native writes now require an explicit connected-account ID even when exactly one account is active. A missing/revoked explicitly selected account raises ConnectionRequired and never substitutes the remaining account. Added regression tests for both cases. This is a gateway guard, not full persisted approval-to-account binding; that requirement remains open. Local validation: 49 foundation tests (48 passed, one PostgreSQL-only skip), 33 demo tests passed. Remote publication and CI for this increment remain pending.
+
+## Gateway validation boundary
+
+The Composio gateway now runs full canonical action validation before account lookup or provider dispatch. Previously it checked native argument fields but skipped the stricter gmail recipient/header validation and rejection of unexpected top-level plan fields. Regression tests cover header injection and tenant-field injection, asserting no provider call. Validation: 51 foundation tests (50 passed, one PostgreSQL skip), 33 demo tests passed. Git publication remains blocked through available CLI/API credentials: git requires authentication and the connected GitHub API returns 404 for this private repository. Browser publication is still pending; no remote CI success is claimed for the two local increments.
+
+## Disclosure destination enforcement
+
+Native writes now require a trusted per-integration `allowed_destinations` map, keyed by action and containing exact allowed destination strings. Example: `"allowed_destinations":{"gmail.send":["client@example.com"]}`. Wildcards and domain matching are not interpreted. Missing policies deny writes. Coverage includes email, Slack channel, spreadsheet, calendar/event and CRM contact destinations. Read operations remain unaffected. This is a deployment allowlist, not recipient identity resolution or approval-account binding. Existing configurations without this map intentionally fail closed for writes. Tests cover missing policies, wrong destinations, wildcard rejection, exact match and read behavior.
+
+Local foundation verification: 57 tests, 56 passed and one PostgreSQL-only skip. Publication, PostgreSQL CI and live-provider checks remain pending. Phase 4 is still open for persisted account/resource binding, live-data dry run and cross-layer policy integration; these are not replaced by destination allowlists.
+
+## Persisted account binding
+
+Workflow plans now support a bounded `account_id` field that is stored within the canonical plan and included in its approval digest. Owner edits to this field follow the existing edit path and invalidate approval. Gateway dispatch selects that bound account and rejects a conflicting account override. Tests verify persisted edit invalidation, substitution rejection and selected-account dispatch. Legacy unbound plans still exist; admission and owner selection UI must require binding before production writes can be enabled. This increment therefore does not close Phase 4.
+
+Validation: 60 foundation tests (59 passed, one PostgreSQL skip) and 33 demo tests passed locally. No live provider tests, remote publication or CI verification were performed for this increment. Phase 5 inspection confirms it still has only the proposal fingerprint primitive; durable browser approval, session lifecycle, trusted capture/revalidation and verified actions remain unimplemented. Both phases remain open.
