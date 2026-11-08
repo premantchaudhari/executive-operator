@@ -3,7 +3,8 @@ import json,re
 from urllib.parse import urlsplit
 from operator_app.native_tools import TOOLS,APPS,check_arguments
 
-class ConnectionRequired(Exception):pass
+class ConnectionRequired(Exception):
+    """Pre-dispatch connection/selection block; never wrap uncertain effects."""
 class Gateway:
     def __init__(self,client,config):self.client,self.config=client,config
     @classmethod
@@ -80,13 +81,18 @@ class Gateway:
         accounts=self.accounts(org,app)
         selected=[a for a in accounts if account_id is None or a.id==account_id]
         if not selected:raise ConnectionRequired(app)
-        if len(selected)!=1:raise ValueError('Explicit account selection required')
+        if len(selected)!=1:raise ConnectionRequired(app)
         params={mapping[k]:(json.loads(v) if k=='values_json' else v) for k,v in args.items()}
-        response=self.client.tools.execute(definition['slug'],user_id=self.identity(org),connected_account_id=selected[0].id,version=definition['version'],arguments=params)
+        try:
+            response=self.client.tools.execute(definition['slug'],user_id=self.identity(org),connected_account_id=selected[0].id,version=definition['version'],arguments=params)
+        except ConnectionRequired:
+            raise RuntimeError('Connection failure after dispatch requires reconciliation') from None
         if not isinstance(response,dict) or response.get('successful') is not True:raise RuntimeError('Native tool failed')
         data=response.get('data')
         encoded=json.dumps(data)
         if len(encoded)>64000:raise ValueError('Provider output exceeds cap')
-        verified=effect=='read' or verify(plan,response)
+        try:verified=effect=='read' or verify(plan,response)
+        except ConnectionRequired:
+            raise RuntimeError('Connection failure during verification requires reconciliation') from None
         if verified is not True:raise RuntimeError('Provider postcondition unverified')
         return {'verified':True,'app':app,'action':action,'account_id':selected[0].id,'data':data}

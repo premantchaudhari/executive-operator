@@ -33,7 +33,7 @@ def dispatch_once(sessions,planner,gateway):
                 execute_workflow(sessions,jid,LeasedGateway())
                 with sessions() as s:
                     state=s.get(Workflow,jid).status
-                    outcome=state if state in ('completed','awaiting_approval','cancelled','rejected','needs_review') else 'needs_review'
+                    outcome=state if state in ('completed','awaiting_approval','awaiting_connection','cancelled','rejected','needs_review') else 'needs_review'
             heartbeat.check()
     except Exception:outcome='needs_review'
     with sessions.begin() as s:
@@ -43,7 +43,7 @@ def dispatch_once(sessions,planner,gateway):
         workflow=s.scalar(select(Workflow).where(Workflow.id==jid).with_for_update())
         if workflow:
             if workflow.status in ('cancelled','rejected'):outcome=workflow.status
-            elif outcome=='awaiting_approval' and workflow.status=='queued':
+            elif outcome in ('awaiting_approval','awaiting_connection') and workflow.status=='queued':
                 # Owner decision/edit raced the dispatcher's final bookkeeping.
                 outcome='queued'
         job.status=outcome;job.lease_token=None;job.lease_until=None

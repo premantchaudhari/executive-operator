@@ -10,6 +10,7 @@ from operator_app.native_tools import TOOLS
 from .models import Workflow,WorkflowStep,AuditEvent,Job,now,identifier
 from .service import authorize,enqueue
 from .policy import require_owner,permitted
+from .integrations import ConnectionRequired
 
 def canonical(plan):
     base={k:v for k,v in plan.items() if k!='account_id'}
@@ -74,8 +75,8 @@ def cancel(session,org,principal,wid):
     wf.status='cancelled'
     job=session.get(Job,wid)
     # An in-flight call keeps its lease until dispatch records its final outcome.
-    if job.status in ('queued','awaiting_approval'):job.status='cancelled'
-    for step in session.scalars(select(WorkflowStep).where(WorkflowStep.workflow_id==wid,WorkflowStep.status.in_(('pending','approved','awaiting_approval')))):
+    if job.status in ('queued','awaiting_approval','awaiting_connection'):job.status='cancelled'
+    for step in session.scalars(select(WorkflowStep).where(WorkflowStep.workflow_id==wid,WorkflowStep.status.in_(('pending','approved','awaiting_approval','awaiting_connection')))):
         step.status='cancelled';step.approved_by=None;step.approval_until=None
     session.add(AuditEvent(organization_id=org,actor=principal.subject,resource_id=wid,event='workflow.cancelled'))
     return {'status':wf.status}
@@ -105,7 +106,7 @@ def run(sessions,wid,execute):
                 # Another worker may still be active, or crashed after an external effect.
                 # Never steal or repeat a running step.
                 return {'continue_run':False}
-            if step.status=='awaiting_approval':return {'continue_run':False}
+            if step.status in ('awaiting_approval','awaiting_connection'):return {'continue_run':False}
             if step.status not in ('pending','approved'):
                 wf.status='needs_review';return {'continue_run':False}
             plan=json.loads(step.plan)
@@ -133,6 +134,12 @@ def run(sessions,wid,execute):
             result_json=json.dumps(result,ensure_ascii=False,allow_nan=False)
             if len(result_json.encode('utf-8'))>64000:raise ValueError('Output too large')
             outcome='completed'
+        except ConnectionRequired:
+            # This exception is reserved for pre-dispatch account absence.
+            # A provider timeout/auth failure after dispatch stays uncertain.
+            outcome='awaiting_connection'
+            result_json=json.dumps({'message':'Connect an account and select it before resuming',
+                                    'app':TOOLS[plan['action']][0],'account_id':plan.get('account_id')})
         except Exception:
             outcome='needs_review';result_json=json.dumps({'message':'Outcome uncertain or unverified; reconcile before retrying'})
         with sessions.begin() as session:
@@ -146,9 +153,11 @@ def run(sessions,wid,execute):
                 session.add(AuditEvent(organization_id=org,actor='worker',resource_id=sid,event='step.late_result_requires_reconciliation'))
                 return {'continue_run':False}
             step.status=outcome;step.result=result_json
+            if outcome=='awaiting_connection':
+                step.approved_by=None;step.approval_until=None
             session.add(AuditEvent(organization_id=org,actor='worker',resource_id=sid,event='step.'+outcome))
             if wf.status=='cancelled':return {'continue_run':False}
-            wf.status='queued' if outcome=='completed' else 'needs_review'
+            wf.status='queued' if outcome=='completed' else outcome
         return {'continue_run':outcome=='completed'}
     graph=StateGraph(RunState);graph.add_node('advance',advance);graph.add_edge(START,'advance')
     graph.add_conditional_edges('advance',lambda s:'advance' if s['continue_run'] else END)
@@ -200,5 +209,31 @@ def refresh_review(session,org,principal,wid,sid,expected_digest):
 
 def exceptions(session,org,principal):
     require_owner(session,org,principal)
-    items=session.scalars(select(Workflow).where(Workflow.organization_id==org,Workflow.status.in_(('awaiting_approval','needs_review'))).order_by(Workflow.id).limit(100)).all()
+    items=session.scalars(select(Workflow).where(Workflow.organization_id==org,Workflow.status.in_(('awaiting_approval','awaiting_connection','needs_review'))).order_by(Workflow.id).limit(100)).all()
     return {'workflows':[summary(session,wf) for wf in items]}
+
+
+def resume_connection(session,org,principal,wid,sid,expected_digest,account_id,gateway):
+    """Owner binds a provider-confirmed account; never resumes uncertain effects."""
+    wf=scoped(session,org,principal,wid,True)
+    require_owner(session,org,principal)
+    step=session.scalar(select(WorkflowStep).where(WorkflowStep.id==sid,WorkflowStep.workflow_id==wid))
+    if step is None or wf.status!='awaiting_connection' or step.status!='awaiting_connection':
+        raise HTTPException(409,'Step is not awaiting a connection')
+    if step.digest!=expected_digest or digest(step.plan)!=step.digest:
+        raise HTTPException(409,'Action version changed')
+    job=session.get(Job,wid)
+    if job.status!='awaiting_connection':
+        raise HTTPException(409,'Worker has not parked this connection pause yet')
+    if not permitted(session,org,job.submitted_by,principal.subject):
+        raise HTTPException(409,'Execution is paused or submitter permission was revoked')
+    plan=json.loads(step.plan);canonical(plan)
+    app=TOOLS[plan['action']][0]
+    account=gateway.owned_account(org,app,account_id)
+    if account.status!='ACTIVE':raise HTTPException(409,'Selected account is not active')
+    encoded=canonical({**plan,'account_id':account_id})
+    step.plan=encoded;step.digest=digest(encoded);step.status='pending';step.result=None
+    step.approved_by=None;step.approval_until=None;wf.status='queued'
+    job.status='queued'
+    session.add(AuditEvent(organization_id=org,actor=principal.subject,resource_id=sid,event='step.connection_selected_approval_invalidated'))
+    return {'status':wf.status,'digest':step.digest,'approval_required':plan['action'] in APPROVAL}

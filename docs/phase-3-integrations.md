@@ -52,3 +52,13 @@ Tests cover foreign organizations, mismatched auth configs, readback failure, re
 Official API/SDK references checked for this change:
 - https://docs.composio.dev/docs/auth-configuration/connected-accounts
 - https://docs.composio.dev/reference/sdk-reference/python/connected-accounts
+
+## Durable account pause and owner resume — 2026-11-08
+
+Native pre-dispatch account absence or ambiguous account selection now persists `awaiting_connection` on the step, workflow and job. The queue does not automatically retry these jobs. The owner exception inbox includes the blocked step's app and bound account, without provider credentials or authorization links. Completed earlier steps and their receipts are preserved. Connection pauses invalidate any previous write approval.
+
+After completing the hosted connection flow, the owner must explicitly select an account with POST `/v1/organizations/{org}/workflows/{wid}/steps/{sid}/connection`, supplying `{ "digest": "<current step digest>", "account_id": "<selected active account>" }`. The endpoint rechecks owner/submitter authorization, pause state, tenant workflow/step scope, exact plan digest and provider-confirmed account ownership/auth config/active status. It queues the persisted job with the selected account bound into the plan. Writes return to fresh approval; the connection endpoint never approves a write. No callback or hosted link completion is trusted as account proof.
+
+Resume only accepts a job fully parked in `awaiting_connection`; a concurrent request before the dispatcher releases its lease receives 409 and may be retried after the visible job status updates. Duplicate resume, stale digests, inactive/foreign accounts and cancelled or uncertain workflows cannot requeue work. Gateway failures after dispatch or during postcondition verification remain `needs_review`, even if the exception concerns a connection. They cannot use this resume path to repeat an uncertain effect.
+
+Tests cover restart-style API resume, completed-step preservation, ambiguous accounts through the actual gateway with a fake SDK client, write approval invalidation, inactive/foreign accounts, cross-tenant/viewer denial, pause/cancel, repeated resume and sanitized verification failure. These tests do not establish live consent, SDK compatibility or actual delivery. Provider verifiers, rich resource resolution, scope review, bounded SDK calls and user-facing connection UI remain dependencies before the complete acceptance journey is available.

@@ -28,6 +28,9 @@ class IntegrationTests(unittest.TestCase):
     def test_read_failure_not_success(self):
         self.client.tools.execute.return_value={'successful':False}
         with self.assertRaises(RuntimeError):self.gateway.execute('a',self.plan)
+    def test_post_dispatch_connection_failure_is_not_resumable_preflight(self):
+        self.client.tools.execute.side_effect=ConnectionRequired('googlesheets')
+        with self.assertRaisesRegex(RuntimeError,'after dispatch'):self.gateway.execute('a',self.plan)
     def test_all_write_actions_require_approval(self):
         for action,(_,effect,_) in TOOLS.items():
             if effect=='write':self.assertIn(action,APPROVAL)
@@ -37,7 +40,7 @@ class IntegrationTests(unittest.TestCase):
         with self.assertRaises(ValueError):validate({'action':'quickbooks.query','arguments':{'query':'DELETE FROM Invoice'}})
     def test_ambiguous_account_selection_blocks(self):
         self.client.connected_accounts.list.return_value.items.append(Obj(id='other',user_id='organization:a',status='ACTIVE',auth_config=Obj(id='auth')))
-        with self.assertRaises(ValueError):self.gateway.execute('a',self.plan)
+        with self.assertRaises(ConnectionRequired):self.gateway.execute('a',self.plan)
         self.client.tools.execute.assert_not_called()
 
     def test_write_without_explicit_account_never_dispatches(self):

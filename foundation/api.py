@@ -30,6 +30,10 @@ class DecisionBody(BaseModel):
 class PauseBody(BaseModel):
     model_config=ConfigDict(extra='forbid')
     paused:bool=Field(strict=True)
+class ConnectionResumeBody(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    digest:str=Field(min_length=64,max_length=64)
+    account_id:str=Field(min_length=1,max_length=255)
 class EditBody(BaseModel):
     model_config=ConfigDict(extra='forbid')
     digest:str=Field(min_length=64,max_length=64)
@@ -140,6 +144,16 @@ def create_app(sessions=None,verifier=None,gateway_factory=None):
     @app.post('/v1/organizations/{org}/workflows/{wid}/cancel')
     def cancel_workflow(org:str,wid:str,principal=Depends(identity),session:Session=Depends(db)):
         return workflows.cancel(session,org,principal,wid)
+    @app.post('/v1/organizations/{org}/workflows/{wid}/steps/{sid}/connection')
+    def resume_connected_step(org:str,wid:str,sid:str,body:ConnectionResumeBody,principal=Depends(identity),session:Session=Depends(db)):
+        from .integrations import ConnectionRequired
+        from .policy import require_owner
+        # Check role before constructing a provider client or reading accounts.
+        require_owner(session,org,principal)
+        try:return workflows.resume_connection(session,org,principal,wid,sid,body.digest,body.account_id,gateway_factory())
+        except HTTPException:raise
+        except ConnectionRequired:raise HTTPException(404,'Connected account not found') from None
+        except Exception:raise HTTPException(503,'Connection verification unavailable; workflow remains paused') from None
     @app.post('/v1/organizations/{org}/conversations',status_code=201)
     def new_conversation(org:str,principal=Depends(identity),session:Session=Depends(db)):
         return {'id':conversations.start(session,org,principal).id}
