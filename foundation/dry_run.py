@@ -5,6 +5,7 @@ from .workflows import canonical,digest
 from .policy import require_owner,permitted
 from .models import AuditEvent
 import json
+from uuid import uuid5,NAMESPACE_URL
 
 
 def preview(sessions,org,principal,plans,gateway):
@@ -22,7 +23,7 @@ def preview(sessions,org,principal,plans,gateway):
         with sessions.begin() as session:
             require_owner(session,org,principal)
             if not permitted(session,org,principal.subject):raise HTTPException(409,'Organization paused')
-            session.add(AuditEvent(organization_id=org,actor=principal.subject,resource_id=digest(item),event='dry_run.reviewed'))
+            session.add(AuditEvent(organization_id=org,actor=principal.subject,resource_id=str(uuid5(NAMESPACE_URL,'executive-operator:preview:'+org+':'+digest(item))),event='dry_run.reviewed'))
         if TOOLS[plan['action']][1]=='write':
             results.append({'digest':digest(item),'status':'write_not_executed','plan':plan})
             continue
