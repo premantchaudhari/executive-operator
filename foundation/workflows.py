@@ -12,6 +12,7 @@ from .service import authorize,enqueue
 from .policy import require_owner,permitted
 from .integrations import ConnectionRequired
 from .gmail_verification import SentMessageUnconfirmed
+from .crm_sheets_verification import WriteUnconfirmed
 
 def canonical(plan):
     base={k:v for k,v in plan.items() if k!='account_id'}
@@ -135,6 +136,9 @@ def run(sessions,wid,execute):
             result_json=json.dumps(result,ensure_ascii=False,allow_nan=False)
             if len(result_json.encode('utf-8'))>64000:raise ValueError('Output too large')
             outcome='completed'
+        except WriteUnconfirmed as error:
+            outcome='needs_review'
+            result_json=json.dumps({'message':'Write postcondition unconfirmed; reconcile before retrying','evidence':error.evidence})
         except SentMessageUnconfirmed as error:
             outcome='needs_review'
             result_json=json.dumps({'message':'Send returned an ID but its postcondition is unconfirmed; reconcile before retrying',

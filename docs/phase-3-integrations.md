@@ -1,15 +1,15 @@
 # Phase 3 — native integration registry and gateway increment
 
-The provider-independent registry covers seven services and 14 actions. These are semantic application contracts, not asserted Composio tool names or already-live connections.
+The provider-independent registry currently covers seven services and 16 actions. These are semantic application contracts, not asserted Composio tool names or already-live connections.
 
 | Service | Current contracts | Remaining full-scope actions |
 |---|---|---|
 | Gmail | Search/read query, exact message retrieval, opt-in send with sent-copy readback verification | Threads, draft lifecycle, attachments, reply identity, live schema acceptance |
 | Calendar | Read window, create event, cancel by ID | Updates, attendee resolution, conflict detection |
 | Drive | Search and read by ID | Upload, controlled sharing and downloads/artifact pipeline |
-| Sheets | Read range, append JSON rows | Typed updates, concurrency and formula policies |
+| Sheets | Read range, append JSON rows with opt-in RAW/readback postcondition | Typed updates, broader input support, concurrency and resource resolution |
 | Slack | Search, channel message | Channel/member permissions and targeted resource resolution |
-| HubSpot | Search, create contact | Deals, notes, updates and duplicate resolution |
+| HubSpot | Search, exact contact read, create contact with opt-in properties readback | Deals, notes, updates and duplicate resolution |
 | QuickBooks | Conservative read-only SELECT | Reviewed bookkeeping changes and invoice workflows; no payment execution |
 
 ## Configuration and authorization
@@ -68,3 +68,9 @@ Tests cover restart-style API resume, completed-step preservation, ambiguous acc
 The registry now has 15 actions across seven services. `gmail.get(message_id)` adds an exact resource read contract. An explicitly configured `google.gmail.sent_plaintext.v1` verifier can check a Gmail send through the production gateway/worker without an injected generic verifier. It reads the returned message ID through the same bound account, checks the sent-copy state and exact approved content, then records evidence distinguishing sent-copy confirmation from recipient delivery. Failed readback leaves the workflow in review with its returned ID, never a reconnect retry or automatic resend. All other write tools still require their own reviewed provider handlers.
 
 See `gmail-verification.md` for strict schema configuration, scope and MIME limits, failure semantics and external acceptance gates. This supersedes the earlier statement that no postcondition handlers exist; it does not establish complete Phase 3 or A02 acceptance. Tests use a fake SDK client through the actual production gateway and dispatcher; no live email was sent.
+
+## HubSpot and Sheets postconditions
+
+Two additional opt-in handlers now verify exact-account readback after contact creation and Sheets append. `hubspot.get_contact(contact_id)` adds the sixteenth semantic action. The contact handler checks the returned ID, active/nonarchived state and exact approved email/name properties. The Sheets handler requires RAW input/unformatted row-major reads, constrains returned ranges to the explicitly approved sheet/columns/rows, and compares every intended cell. Returned contact IDs and append ranges are retained on unconfirmed outcomes for manual reconciliation; neither a timeout nor revoked account enables automatic write replay.
+
+See `crm-sheets-verification.md` for configuration and supported input contracts. This increment exercises a two-write persisted workflow with separate approvals and partial-failure evidence through the actual gateway/dispatcher and fake SDK clients. Native CRM search/resource selection, typed inter-step dataflow, remaining provider write handlers, live SDK mappings and complete A02 acceptance are still unfinished.

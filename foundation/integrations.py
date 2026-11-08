@@ -82,16 +82,21 @@ class Gateway:
         if action not in TOOLS:raise ValueError('Unregistered native tool')
         check_arguments(action,args)
         app,effect,fields=TOOLS[action];cfg,definition,mapping=self.definition(action)
-        builtin=False
+        builtin=None
         if effect=='write' and verify is None:
             from .gmail_verification import CONTRACT
-            if action!='gmail.send' or cfg.get('verification_contract')!=CONTRACT:
+            from .crm_sheets_verification import CONTRACTS,preflight
+            if action=='gmail.send' and cfg.get('verification_contract')==CONTRACT:
+                read_action='gmail.get';builtin='gmail'
+            elif action in CONTRACTS and cfg.get('verification_contract')==CONTRACTS[action][0]:
+                read_action=CONTRACTS[action][1];builtin='crm_sheets'
+            else:
                 raise ValueError('Write requires provider-specific verifier; execution blocked')
-            # Validate readback configuration before any send can be dispatched.
-            self.definition('gmail.get')
-            if 'result_path' not in definition or 'result_path' not in cfg['tools']['gmail.get']:
-                raise ValueError('Explicit reviewed send/readback result paths required')
-            builtin=True
+            # Validate readback configuration before any write can be dispatched.
+            _,read_definition,_=self.definition(read_action)
+            if 'result_path' not in definition or 'result_path' not in read_definition:
+                raise ValueError('Explicit reviewed write/readback result paths required')
+            if builtin=='crm_sheets':preflight(plan,definition,read_definition)
         if effect=='write' and (not isinstance(account_id,str) or not account_id.strip()):
             raise ValueError('Writes require an explicit connected account; automatic substitution is forbidden')
         from .disclosure import enforce
@@ -111,12 +116,15 @@ class Gateway:
         if len(json.dumps(raw_data,ensure_ascii=False,allow_nan=False).encode())>64000:raise ValueError('Provider output exceeds cap')
         data=project(raw_data,definition.get('result_path',''));evidence=None
         try:
-            if builtin:
+            if builtin=='gmail':
                 mid=message_id(data)
                 try:
                     readback=self.execute(org,{'action':'gmail.get','account_id':selected[0].id,'arguments':{'message_id':mid}})
                     evidence=verify_sent(plan,readback['data'],mid);verified=True
                 except Exception:raise SentMessageUnconfirmed(mid) from None
+            elif builtin=='crm_sheets':
+                from .crm_sheets_verification import verify_write
+                evidence=verify_write(self,org,plan,selected[0].id,data);verified=True
             else:verified=effect=='read' or verify(plan,response)
         except ConnectionRequired:
             raise RuntimeError('Connection failure during verification requires reconciliation') from None

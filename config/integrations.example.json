@@ -82,10 +82,13 @@
   },
   "googlesheets": {
     "auth_config_id": "",
+    "verification_contract": "",
     "tools": {
       "sheets.read": {
         "slug": "",
         "version": "",
+        "result_path": "",
+        "defaults": {"value_render_option": "UNFORMATTED_VALUE"},
         "argument_map": {
           "spreadsheet_id": "spreadsheet_id",
           "range": "range"
@@ -94,6 +97,8 @@
       "sheets.append": {
         "slug": "",
         "version": "",
+        "result_path": "",
+        "defaults": {"value_input_option": "RAW"},
         "argument_map": {
           "spreadsheet_id": "spreadsheet_id",
           "range": "range",
@@ -104,6 +109,7 @@
   },
   "hubspot": {
     "auth_config_id": "",
+    "verification_contract": "",
     "tools": {
       "hubspot.search": {
         "slug": "",
@@ -115,11 +121,19 @@
       "hubspot.create_contact": {
         "slug": "",
         "version": "",
+        "result_path": "",
         "argument_map": {
           "email": "email",
           "firstname": "firstname",
           "lastname": "lastname"
         }
+      },
+      "hubspot.get_contact": {
+        "slug": "",
+        "version": "",
+        "result_path": "",
+        "defaults": {"properties": ["email", "firstname", "lastname"]},
+        "argument_map": {"contact_id": "contact_id"}
       }
     }
   },

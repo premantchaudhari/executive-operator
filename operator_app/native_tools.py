@@ -13,6 +13,7 @@ TOOLS={
  'slack.search':('slack','read',('query',)),
  'slack.send':('slack','write',('channel_id','text')),
  'hubspot.search':('hubspot','read',('query',)),
+ 'hubspot.get_contact':('hubspot','read',('contact_id',)),
  'hubspot.create_contact':('hubspot','write',('email','firstname','lastname')),
  'quickbooks.query':('quickbooks','read',('query',)),
 }
@@ -29,9 +30,14 @@ def check_arguments(action,args):
     if action=='gmail.get':
         import re
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,255}',args['message_id']):raise ValueError('Invalid Gmail message ID')
+    if action=='hubspot.get_contact':
+        import re
+        if not re.fullmatch(r'[A-Za-z0-9_-]{1,255}',args['contact_id']):raise ValueError('Invalid contact ID')
     if action=='sheets.append':
         rows=json.loads(args['values_json'])
         if not isinstance(rows,list) or not 1<=len(rows)<=1000 or any(not isinstance(r,list) or len(r)>100 or any(type(v) not in (str,int,float,bool,type(None)) for v in r) for r in rows):raise ValueError('Expected bounded JSON rows')
+        import math
+        if any(type(v)==float and not math.isfinite(v) for row in rows for v in row):raise ValueError('Finite cell values required')
     if action.startswith('calendar.') and 'start' in args:
         start=datetime.fromisoformat(args['start']);end=datetime.fromisoformat(args['end'])
         if start.tzinfo is None or end.tzinfo is None or end<=start:raise ValueError('Calendar timestamps require offsets and end after start')
