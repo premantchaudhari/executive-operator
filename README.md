@@ -4,7 +4,7 @@
 
 Executive Operator explores a practical problem: how can an assistant execute bounded business tasks while keeping the human owner in control of the precise side effects?
 
-> **Status: development / portfolio preview.** This is not an unrestricted autonomous agent, a production-ready multi-tenant SaaS or a verified live integration service. The repository currently remains private and proprietary; see [LICENSE](LICENSE).
+> **Status: development / portfolio preview.** This is not an unrestricted autonomous agent, a production-ready multi-tenant SaaS or a verified live integration service. This release branch prepares the full source for MIT licensing; the repository remains private pending security and CI gates. See [LICENSE](LICENSE).
 
 ## Highlights
 
@@ -103,8 +103,8 @@ The larger foundation has additional dependencies and a separate CI workflow. Co
 
 ## Licensing and publication
 
-This repository **is not currently offered under an open-source license**. Its existing [LICENSE](LICENSE) reserves rights. Documentation preparation is not permission to redistribute the code.
+The candidate full-source release branch carries an [MIT license](LICENSE) for code authored and owned by the maintainer; third-party dependencies and any externally sourced assets retain their own licenses. The current GitHub repository is **still private** until publication gates are satisfied. MIT permits redistribution and commercial use under its terms.
 
-Before any public release: decide whether to open-source the whole implementation or publish a separate demo/core; audit all files and Git history for credentials and confidential data; verify third-party rights; then add an appropriate open-source license to the exact code being released. See [SECURITY.md](SECURITY.md).
+Before changing visibility: run the history-level secret scan, verify third-party rights, confirm CI, a clean Docker build, and the exact release diff. See [SECURITY.md](SECURITY.md) and [release plan](docs/open-source-release-plan.md).
 
 Built as an engineering and research showcase. No claims of autonomous performance superiority, production security certification, or tested real-world customer outcomes are made.
