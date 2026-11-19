@@ -71,4 +71,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build clean foundation image
-        run: docker build -f Dockerfile.foundation -t executive-operator-foundation:release .
+        run: |
+          docker build -f Dockerfile.foundation -t executive-operator-foundation:release .
+          docker build -f Dockerfile.live -t executive-operator-live:release .
