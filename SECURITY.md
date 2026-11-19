@@ -16,11 +16,11 @@ Use private GitHub security reporting when available. Otherwise contact the main
 
 ## Publication checklist (not yet certified)
 
-- [ ] Confirm whether the distribution will be a limited public demo/core or the entire codebase.
+- [x] Selected the full codebase as the intended release scope; final visibility is gated on verification.
 - [ ] Run a full repository and **all reachable Git history** scan using Gitleaks or equivalent, across all branches/tags.
 - [ ] Rotate credentials found anywhere in history before rewriting or exporting code; deleting only the latest occurrence does not remove past exposure.
 - [ ] Audit sample fixtures, docs, configuration, migrations and logs for personal/business data.
-- [ ] Review third-party source, assets, and SDK licenses before adding an open-source license.
+- [ ] Review third-party source, assets, and SDK licenses before **publishing** under the candidate MIT license.
 - [ ] Verify no internal deployment URLs, real customer identifiers, private integration mappings or personal emails are present.
 - [ ] Run the pilot unit tests, foundation tests and CI from a fresh checkout. Document any skipped tests.
 - [ ] Test demo behavior and validate that zero external side effects occur with default settings.
