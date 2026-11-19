@@ -2,7 +2,7 @@
 
 Thank you for your interest in Executive Operator.
 
-**Current status:** the full-source release candidate carries an [MIT license](LICENSE). GitHub repository visibility is still private until the release gates pass. Contributions should target the release branch only until it is merged.
+**Current status:** Executive Operator is a public, [MIT-licensed](LICENSE) development project. Contributions are welcome through GitHub issues and pull requests. Open pull requests against `main`; do not include real credentials or customer data.
 
 ## Development principles
 
