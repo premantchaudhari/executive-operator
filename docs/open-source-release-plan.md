@@ -1,28 +1,28 @@
-# Full repository open-source release plan
+# Open-source release record
 
-**Decision:** prepare the existing `executive-operator` repository for a public, MIT-licensed source release, preserving its meaningful history if it passes an exhaustive scan. This replaces the earlier preference for publishing only the detached Core demo.
+The original `executive-operator` repository was made **public** on November 19, 2026 under the [MIT License](../LICENSE). This supersedes the earlier proposal to publish only the detached Executive Operator Core demo.
 
-The software is a **development/research release**, not a certified production multi-tenant system. The local owner-only demonstration remains side-effect free by default. Foundation components, integration contracts, and live-provider support have separately documented verification gaps.
+## What was published
 
-## Changes in release candidate
+The original repository includes the owner-only SQLite demo, PostgreSQL foundation, migrations, tests, example integration configurations and historical engineering notes. It demonstrates approval-first automation, task state persistence, bounded workflows and verification contracts. It is **development/research software**, not a production-certified agent service.
 
-- Update the portfolio README and historical-document scope notes.
-- Prepare the MIT license for original maintainers' code (third-party licenses remain applicable).
-- Fix the foundation Docker image to include shared `operator_app` imports.
-- Add CI tests for the pilot, PostgreSQL foundation and Docker build/import smoke check.
-- Add a history secret scan gate and document release criteria.
+## Release preparation
 
-## Required before changing visibility
+[PR #1](https://github.com/premantchaudhari/executive-operator/pull/1), merged as `3b8875fe76ca74caa4a58d64585a2eba41122713`, completed the following:
 
-1. Full Git history scan, including **every branch and tag**, using Gitleaks (or equivalent). Review false positives and rotate any genuine leaked credentials before publication.
-2. Review provenance and redistribution rights of each source file, third-party snippet, images and other bundled assets. The MIT license does not override third-party restrictions.
-3. Verify clean pilot tests, PostgreSQL foundation tests with migrations, Docker image build, and deployment import smoke check.
-4. Verify that the default demo is side-effect free and localhost bound, and that real provider credentials are never included in fixtures.
-5. Inspect the final release diff and license implications; public MIT licensing permits commercial reuse.
-6. Update `main` only after checks have passed; change GitHub visibility separately through the repository settings.
+- Rewrote the portfolio README and marked initial design plans as historical.
+- Added MIT licensing for original code authored and owned by the maintainer.
+- Fixed missing shared modules and user/group conflicts in Docker packaging.
+- Added a GitHub Actions release workflow covering owner-only tests, PostgreSQL foundation tests, foundation and live Docker builds, and Gitleaks history scanning.
 
-## Security and historical notes
+The release workflow passed on commit `dc475a0f2ae7b841c2f28e0fb6266d473b7d852d` before PR merge. These results do not validate the production behavior of external APIs.
 
-Previous targeted source/commit-diff checks found no recognizable live-key patterns, but this does **not** establish a full history clearance. Historical plans must be explicitly marked as snapshots; see [progress](progress.md).
+## Ongoing responsibilities
 
-**Status:** release candidate prepared on a private branch; not declared cleared for publication.
+- Keep secrets, OAuth credentials and customer data out of the repository; rotate exposed credentials immediately.
+- Continue third-party license, code-provenance, dependency and asset-rights review. Public availability and passing CI are not proof of redistribution clearance.
+- Preserve the distinction between the fictional local demo and the unfinished/unverified production foundation.
+- Run Git history scanning, tests and Docker builds after consequential changes.
+- Review [security policy](../SECURITY.md) and [implementation progress](progress.md) before deployment.
+
+**Current publication status:** public, MIT-licensed source project. Production readiness is **not established**.
