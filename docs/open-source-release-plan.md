@@ -1,24 +1,28 @@
-# Open-source release plan
+# Full repository open-source release plan
 
-This document separates **portfolio preparation** from a decision to publish proprietary software.
+**Decision:** prepare the existing `executive-operator` repository for a public, MIT-licensed source release, preserving its meaningful history if it passes an exhaustive scan. This replaces the earlier preference for publishing only the detached Core demo.
 
-## Recommended scope
+The software is a **development/research release**, not a certified production multi-tenant system. The local owner-only demonstration remains side-effect free by default. Foundation components, integration contracts, and live-provider support have separately documented verification gaps.
 
-Publish an independent, **side-effect-free demo/core** illustrating the validated task state machine, approval binding, idempotency, audit history, deterministic fixtures, and tests. This offers reviewers working code without distributing private provider mappings or production secrets.
+## Changes in release candidate
 
-Retain the commercial / live-provider components as private unless all code, dependency, content-provenance and security reviews are completed and the maintainer affirmatively approves their release. Avoid exporting original Git history to a new public repository.
+- Update the portfolio README and historical-document scope notes.
+- Prepare the MIT license for original maintainers' code (third-party licenses remain applicable).
+- Fix the foundation Docker image to include shared `operator_app` imports.
+- Add CI tests for the pilot, PostgreSQL foundation and Docker build/import smoke check.
+- Add a history secret scan gate and document release criteria.
 
-## Before publication
+## Required before changing visibility
 
-1. Select the exact files, security boundary and final public repository.
-2. Scan the working tree and every existing commit/branch/tag for secrets and sensitive artifacts. This inspection has not been completed by the documentation edits.
-3. Verify origins and licenses of included code/assets. Obtain any necessary third-party permissions.
-4. Run a fresh clean-room test, with no production keys or customer accounts.
-5. Rewrite the README for the exact released subset and its actual commands.
-6. Add an explicit open-source license to the **released subset** only (MIT or Apache-2.0 could be considered after ownership review).
-7. Review the complete release tree and publish only the scrubbed snapshot, not an automatic mirror of the proprietary project.
-8. Record a release commit and version, link technical architecture and failure tests, and provide screenshot(s) showing fictional data.
+1. Full Git history scan, including **every branch and tag**, using Gitleaks (or equivalent). Review false positives and rotate any genuine leaked credentials before publication.
+2. Review provenance and redistribution rights of each source file, third-party snippet, images and other bundled assets. The MIT license does not override third-party restrictions.
+3. Verify clean pilot tests, PostgreSQL foundation tests with migrations, Docker image build, and deployment import smoke check.
+4. Verify that the default demo is side-effect free and localhost bound, and that real provider credentials are never included in fixtures.
+5. Inspect the final release diff and license implications; public MIT licensing permits commercial reuse.
+6. Update `main` only after checks have passed; change GitHub visibility separately through the repository settings.
 
-## Publication status
+## Security and historical notes
 
-Not approved for public visibility. No new open-source license has been granted over the current repository. Demo/foundation features are not equivalent to a production multi-tenant SaaS. This plan is a safeguard, not a promise that the source is clear for release.
+Previous targeted source/commit-diff checks found no recognizable live-key patterns, but this does **not** establish a full history clearance. Historical plans must be explicitly marked as snapshots; see [progress](progress.md).
+
+**Status:** release candidate prepared on a private branch; not declared cleared for publication.
