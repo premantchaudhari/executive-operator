@@ -1,4 +1,4 @@
-# Security policy and publication gates
+# Security policy
 
 Executive Operator is experimental developer software. It must not be treated as a production-safe autonomous agent.
 
@@ -14,18 +14,17 @@ Executive Operator is experimental developer software. It must not be treated as
 
 Use private GitHub security reporting when available. Otherwise contact the maintainer through a trusted private channel; do not post credentials, sensitive exploit instructions or personal data in a public issue.
 
-## Publication checklist (not yet certified)
+## Public-release record and ongoing security review
 
-- [x] Selected the full codebase as the intended release scope; final visibility is gated on verification.
-- [ ] Run a full repository and **all reachable Git history** scan using Gitleaks or equivalent, across all branches/tags.
-- [ ] Rotate credentials found anywhere in history before rewriting or exporting code; deleting only the latest occurrence does not remove past exposure.
-- [ ] Audit sample fixtures, docs, configuration, migrations and logs for personal/business data.
-- [ ] Review third-party source, assets, and SDK licenses before **publishing** under the candidate MIT license.
-- [ ] Verify no internal deployment URLs, real customer identifiers, private integration mappings or personal emails are present.
-- [ ] Run the pilot unit tests, foundation tests and CI from a fresh checkout. Document any skipped tests.
-- [ ] Test demo behavior and validate that zero external side effects occur with default settings.
-- [ ] Audit production-facing auth, scopes, sandbox and SSRF protections before permitting live accounts.
-- [ ] Review the README to ensure every implementation claim matches evidence.
-- [ ] Explicitly approve the exact branch/commit and license before switching visibility.
+The repository became public under MIT on November 19, 2026. The release PR checks passed: demo tests, PostgreSQL foundation tests, Docker image builds, and a Gitleaks scan of reachable Git history using `--all`. See [release history](docs/open-source-release-plan.md). These results are not a comprehensive security certification.
+
+Ongoing requirements:
+
+- Rotate and revoke any credentials discovered in the future; deleting a secret in a new commit does not erase earlier Git objects.
+- Continue examining fixtures, docs, configuration, integrations and repository history for personal or confidential data.
+- Verify redistributability of third-party code and assets; the MIT license only covers code the maintainer has the right to license.
+- Re-run automated tests, Docker builds, and history secret scanning for material changes.
+- Review authorization, account scoping, sandbox and SSRF defenses before any live deployment with client data.
+- Confirm that the demo remains fictional and performs no external side effects by default.
 
 Passing a pattern search or unit tests alone is **not** proof that a repository is safe to publish.
