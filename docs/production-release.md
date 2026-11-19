@@ -1,5 +1,7 @@
 # Production release gate · owner-only deployment
 
+> **Scope note:** this document describes the owner-only SQLite pilot. The separately developed PostgreSQL `foundation/` contains organization-scoped API and authorization work, but is not thereby production certified. See [progress](progress.md) for the newer foundation status. Public source release and deployment for real clients have different release criteria.
+
 This branch is hardened development code, not a certified production release. It does not implement the entire original autonomous-operator scope. Read-only browser inspection, bounded tools and explicit write approvals remain the supported scope.
 
 ## Implemented controls
