@@ -1,4 +1,6 @@
-# Phase 0 — full-scope baseline and implementation backlog
+# Phase 0 — historical full-scope baseline and implementation backlog
+
+> **Historical snapshot (November 7, 2026).** The status codes below reflect the initial baseline, not the current implementation. Some items shown as missing have since been developed in `foundation/`. See [current implementation evidence](progress.md) and the [README](../README.md) for the up-to-date distinction between demo, foundation and unverified functionality. Do not use this matrix alone for a production or feature-completeness claim.
 
 Date: 2026-11-07. Status: repository audit and implementation planning complete; external feasibility and production acceptance remain open.
 
