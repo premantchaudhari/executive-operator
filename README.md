@@ -4,7 +4,7 @@
 
 Executive Operator explores a practical problem: how can an assistant execute bounded business tasks while keeping the human owner in control of the precise side effects?
 
-> **Status: development / portfolio preview.** This is not an unrestricted autonomous agent, a production-ready multi-tenant SaaS or a verified live integration service. This release branch prepares the full source for MIT licensing; the repository remains private pending security and CI gates. See [LICENSE](LICENSE).
+> **Status: public, MIT-licensed development / portfolio project.** This is not an unrestricted autonomous agent, a production-ready multi-tenant SaaS or a verified live integration service. See [LICENSE](LICENSE).
 
 ## Highlights
 
@@ -103,8 +103,8 @@ The larger foundation has additional dependencies and a separate CI workflow. Co
 
 ## Licensing and publication
 
-The candidate full-source release branch carries an [MIT license](LICENSE) for code authored and owned by the maintainer; third-party dependencies and any externally sourced assets retain their own licenses. The current GitHub repository is **still private** until publication gates are satisfied. MIT permits redistribution and commercial use under its terms.
+**Executive Operator is publicly available under the [MIT License](LICENSE)** for code owned by the maintainer. You may use, copy, modify, distribute and commercially reuse that code under the license terms. Third-party dependencies, code and assets retain their respective licenses.
 
-Before changing visibility: run the history-level secret scan, verify third-party rights, confirm CI, a clean Docker build, and the exact release diff. See [SECURITY.md](SECURITY.md) and [release plan](docs/open-source-release-plan.md).
+The public release completed GitHub Actions checks for the demo, PostgreSQL foundation, Docker image builds and Gitleaks history scanning. These checks do **not** establish production security or comprehensive third-party provenance clearance. See [SECURITY.md](SECURITY.md) and [release history](docs/open-source-release-plan.md).
 
 Built as an engineering and research showcase. No claims of autonomous performance superiority, production security certification, or tested real-world customer outcomes are made.
