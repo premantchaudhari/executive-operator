@@ -2,10 +2,16 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY requirements-foundation.lock ./
-RUN pip install --no-cache-dir -r requirements-foundation.lock && useradd --uid 10001 --create-home operator
+RUN pip install --no-cache-dir -r requirements-foundation.lock && (getent group operator >/dev/null || groupadd operator) && useradd --uid 10001 --gid operator --create-home operator
+# Foundation imports the shared validated action catalog and core from operator_app.
+# Both packages must be included even though this image does not start the pilot server.
+COPY operator_app /app/operator_app
 COPY foundation /app/foundation
 COPY migrations /app/migrations
 COPY alembic.ini /app/alembic.ini
+# Catch missing packages or syntax errors at image build time.
+RUN python -c "import foundation.api, foundation.workflows, operator_app.core" \
+    && python -m compileall -q /app/foundation /app/operator_app /app/migrations
 USER operator
 EXPOSE 8090
 CMD ["uvicorn","foundation.api:create_app","--factory","--host","0.0.0.0","--port","8090","--no-access-log","--limit-concurrency","32","--timeout-keep-alive","5"]
