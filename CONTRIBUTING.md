@@ -2,7 +2,7 @@
 
 Thank you for your interest in Executive Operator.
 
-**Current status:** this is a private, proprietary development project. Public contributions and redistribution are not yet authorized; see [LICENSE](LICENSE). This file defines the intended engineering practices if an open-source release is approved.
+**Current status:** the full-source release candidate carries an [MIT license](LICENSE). GitHub repository visibility is still private until the release gates pass. Contributions should target the release branch only until it is merged.
 
 ## Development principles
 
