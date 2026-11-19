@@ -23,7 +23,7 @@ jobs:
             -v "${{ github.workspace }}:/repo" \
             -w /repo \
             ghcr.io/gitleaks/gitleaks:v8.24.3 \
-            git --redact --exit-code 1 --verbose .
+            git --redact --exit-code 1 --verbose --log-opts='--all' .
 
   pilot:
     name: Owner-only demo tests
