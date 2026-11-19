@@ -1,94 +1,110 @@
-# Executive Operator · v0.1.1
+# Executive Operator
 
-Private pilot for a business owner to delegate bounded tasks and approve exact external changes. Python 3.12+, no dependencies for the demo. Not a production multi-tenant SaaS.
+**Approval-first automation research and working owner-only demo, written in Python.**
 
-The full-product Python foundation is developed separately from the demonstration below. See [current phase progress](docs/progress.md), [full scope](docs/phase-0-scope-and-backlog.md), and [foundation setup](docs/phase-1-foundation.md). Historical pilot limits below describe the demo/legacy server, not a reduction of the agreed full-product backlog. Live acceptance and production release gates remain open.
+Executive Operator explores a practical problem: how can an assistant execute bounded business tasks while keeping the human owner in control of the precise side effects?
 
-## Run in five minutes
+> **Status: development / portfolio preview.** This is not an unrestricted autonomous agent, a production-ready multi-tenant SaaS or a verified live integration service. The repository currently remains private and proprietary; see [LICENSE](LICENSE).
+
+## Highlights
+
+- **Exact-action approvals:** a pending external action must be reviewed; edits invalidate authorization and expired or consumed approvals cannot be reused.
+- **Failure-aware execution:** idempotency, audit transitions and explicit `needs_review` handling for ambiguous outcomes help prevent accidental repeated writes.
+- **Bounded capability access:** allowlisted tools, model-plan validation and safe demo mode distinguish planning from authorization.
+- **Two code tracks:** a runnable owner-only SQLite pilot in `operator_app/`, and a larger PostgreSQL/SQLAlchemy foundation in `foundation/` with Alembic migrations.
+- **Integration verification research:** controlled post-action readback for Gmail, HubSpot contacts and Google Sheets, with uncertain results retained for review.
+- **Tests and CI:** dedicated pilot and foundation suites; see [implementation evidence](docs/progress.md).
+
+### Architecture
+
+```text
+Owner / dashboard / Telegram
+          |
+   authenticated request
+          v
+       planner
+          |
+   schema + policy checks
+          v
+  persisted proposed action
+          |
+    exact owner approval
+          v
+  bounded provider adapter
+          |
+ verified result or review
+          v
+   audited task transition
+```
+
+The pilot persists approvals and task state in SQLite. The separate foundation develops tenant-aware APIs, workers, connection lifecycle handling, and verified write contracts. **Do not assume the foundation's planned or partially implemented features are available from the pilot dashboard.**
+
+## Try the owner-only demo
+
+Requires Python 3.12+; the local demo uses the standard library and **does not send external emails or make external changes**.
+
+### macOS / Linux
 
 ```bash
-# Linux / macOS, from this repository
+git clone https://github.com/premantchaudhari/executive-operator.git
+cd executive-operator
 cp .env.example .env
-python -c 'import secrets; print(secrets.token_urlsafe(32))'
-# Put the generated value into OPERATOR_API_TOKEN in .env.
-# Load only your own trusted .env file:
-set -a
-. ./.env
-set +a
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+# Paste the generated random value as OPERATOR_API_TOKEN in .env
+set -a; . ./.env; set +a
 python -m operator_app.server
 ```
 
-Open http://127.0.0.1:8080 and enter your token. Keep `OPERATOR_MODE=demo` initially. Choose a task template, edit arguments and create the task. An email waits for approval; approve or reject it to exercise the state machine. All demo results explicitly say no external action occurred.
-
-PowerShell alternative:
+### Windows PowerShell
 
 ```powershell
 $env:OPERATOR_API_TOKEN = python -c "import secrets; print(secrets.token_urlsafe(32))"
 $env:OPERATOR_MODE = "demo"
 python -m operator_app.server
-# Use the token from $env:OPERATOR_API_TOKEN in the dashboard.
 ```
 
-## Implemented scope
+Open **http://127.0.0.1:8080**. Enter the bearer token, create a fictional task, review its exact action, and approve or reject. Demo output is simulated and must not be mistaken for an actual provider action.
 
-| Capability tier | Available actions |
-|---|---|
-| 1 · Assistant | Read Gmail through a configured native tool; Gemini intent planning |
-| 2 · Native operator | Gmail send and calendar cancellation, both explicitly approved; Composio connection links |
-| 3 · Browser operator | Browserbase / Playwright read-only inspection of administrator-approved HTTPS hosts |
-| 4 · Sandbox operator | E2B Python execution after review of exact code; output captured as text |
+**Never use the example token in `.env.example` as a real credential.** Bind the demo to localhost. Provider settings and live execution are separate and require explicit configuration and controlled testing.
 
-These are capability gates, not subscription billing plans. All higher tiers include lower ones. `OPERATOR_TIER` defaults to 4. Demo mode simulates every action. Tier 1 still requires the relevant connection in live mode.
+## Implementation versus roadmap
 
-- Owner-only web PWA shell (online only), bearer authentication and persistent SQLite task records.
-- Telegram inbound webhook secret verification and private-chat sender allowlist.
-- Single-step Gemini JSON planning; unsupported actions and malformed parameters rejected.
-- Approval bound to the persisted exact action, valid for 15 minutes, consumed once.
-- Idempotency keys, rolling daily task cap, state transition audit table.
-- Ambiguous provider failures and interrupted tasks become `needs_review`, never automatically retried.
-- Composio connection links returned as `awaiting_connection`; authorize then submit a fresh task for fresh approval.
+| Area | Status | Evidence / limits |
+| --- | --- | --- |
+| Single-owner demo, local task history | Implemented | `operator_app/`, `tests/` |
+| Validated plans, approval expiry, idempotency, audit states | Implemented in pilot | Mock/demo scenarios are not live-provider acceptance |
+| Gmail / Calendar / Composio adapters | Coded; live acceptance incomplete | Provider schemas and accounts must be configured and tested |
+| Read-only browser and E2B primitives | Limited implementations | Not arbitrary browser action or unrestricted execution |
+| Tenant-aware PostgreSQL foundation | In development | `foundation/`, `migrations/`, `tests_foundation/` |
+| CRM / Sheets write verification | Implemented as opt-in contracts; live-unverified | Exact-account postconditions, no blind retries |
+| Multi-tenant production SaaS, general workflows, billing, scheduling | Incomplete / planned | Do not deploy or market as finished |
 
-## Explicit v1 limits
+The dated engineering status and outstanding gates are in [docs/progress.md](docs/progress.md). The [production release gate](docs/production-release.md) documents what remains unverified.
 
-WhatsApp, Slack, Drive, Sheets, HubSpot, QuickBooks, arbitrary browser clicks, browser screenshots/approval continuations, persistent browser login sessions, file upload/download buckets, scheduling, subscription billing, monetary usage metering, and multi-step agent loops are **not implemented**. Telegram approvals happen in the dashboard, not inline chat buttons. Gemini is the only live planner adapter; Claude is a future integration. Live submissions use Python/LangGraph; n8n is excluded. LangGraph routes validated plans into the explicit SQLite state machine; approvals remain durable there.
-
-The host never executes model-generated code. E2B is the only code execution path. Browser writes, payments, banking and OTP verification have no executable tool path. Even internal emails require approval in this pilot. Browser and sandbox outputs are data; they are not fed back into an autonomous planning loop.
-
-Live SDK integrations are implemented but **not live-tested**. They require credentials, optional dependencies, reviewed Composio tool schemas and pinned tool versions. Do not sell an unrestricted autonomous service based on the demo.
-
-## Development checks
+## Run the checks
 
 ```bash
 python -m unittest discover -s tests -v
 python -m compileall -q operator_app
 ```
 
-See [Provider setup](docs/providers.md), [Deployment](docs/deployment.md), [Architecture](docs/architecture.md) and [Validation](docs/validation.md).
+The larger foundation has additional dependencies and a separate CI workflow. Consult [foundation setup](docs/phase-1-foundation.md) and [the foundation CI workflow](.github/workflows/foundation.yml). A previously recorded result (November 8, 2026) reported 148 passing foundation tests, one PostgreSQL-dependent skip, and 33 demo tests; this is historical evidence, **not a fresh test run**.
 
-## Create the private GitHub repository
+## Technical documentation
 
-If working from the supplied source bundle and GitHub CLI is installed/authenticated:
+- [Architecture and trust boundaries](docs/architecture.md)
+- [Development progress and incomplete work](docs/progress.md)
+- [Provider setup](docs/providers.md)
+- [Live vs demo deployment](docs/deployment.md)
+- [Production release and safety gate](docs/production-release.md)
+- [Testing notes](docs/validation.md)
+- [Responsible disclosure and publication review](SECURITY.md)
+- [Contributing guidance](CONTRIBUTING.md)
 
-```bash
-git init -b main
-git add .
-git commit -m "Build Executive Operator private pilot v0.1.1"
-gh repo create executive-operator --private --source=. --remote=origin --push
-gh repo view --json nameWithOwner,isPrivate,url
-```
+## Licensing and publication
 
-Verify `isPrivate` is `true`. Never upload `.env`, credentials, client data or the SQLite database. No public license is granted; see LICENSE.
+This repository **is not currently offered under an open-source license**. Its existing [LICENSE](LICENSE) reserves rights. Documentation preparation is not permission to redistribute the code.
 
-## Separate demonstration and live instances · v0.2 development
+Before any public release: decide whether to open-source the whole implementation or publish a separate demo/core; audit all files and Git history for credentials and confidential data; verify third-party rights; then add an appropriate open-source license to the exact code being released. See [SECURITY.md](SECURITY.md).
 
-Keep the demonstration on port 8080 with `.env` (`OPERATOR_MODE=demo`) and the original compose file. Its fictional inbox and action previews demonstrate approvals without sending anything.
-
-For live setup, copy `.env.example` to `.env.live`, set a **different random owner token**, configure your providers, then run:
-
-```bash
-docker compose -p operator-live -f compose.live.yaml up -d --build
-```
-
-The live instance uses port 8081 and a separate database volume. Both ports bind to localhost. Add HTTPS reverse proxy routing before remote use. In the dashboard, **Check setup** reports missing configuration without exposing secret values. “Configured” is not proof OAuth or provider execution works. Live startup refuses an unconfigured planner.
-
-The live image includes SDK dependencies; these are not yet locked or provider-contract verified. This is an implementation step toward the working pilot, not a claim of production readiness. Account credentials and controlled end-to-end provider tests remain necessary. Do not replace an existing demonstration database with live client data.
+Built as an engineering and research showcase. No claims of autonomous performance superiority, production security certification, or tested real-world customer outcomes are made.
